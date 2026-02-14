@@ -9,7 +9,8 @@ export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE || 'visionart',
   entities: [User],
-  synchronize: process.env.DB_SYNCHRONIZE === 'true',
+  // Auto-sync: create/update tables from entities in dev; disable in production.
+  synchronize: process.env.NODE_ENV !== 'production',
   logging: process.env.DB_LOGGING === 'true',
   charset: 'utf8mb4',
 });
