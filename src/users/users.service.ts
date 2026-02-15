@@ -35,7 +35,14 @@ export class UsersService {
 
   async update(
     id: string,
-    data: { name?: string; email?: string },
+    data: {
+      name?: string;
+      email?: string;
+      bio?: string | null;
+      avatarUrl?: string | null;
+      phoneNumber?: string | null;
+      website?: string | null;
+    },
   ): Promise<User | null> {
     const user = await this.userRepository.findOne({ where: { id } });
     if (!user) return null;
@@ -52,6 +59,13 @@ export class UsersService {
     }
 
     if (data.name != null) user.name = data.name;
+    if ('bio' in data && data.bio !== undefined) user.bio = data.bio;
+    if ('avatarUrl' in data && data.avatarUrl !== undefined)
+      user.avatarUrl = data.avatarUrl;
+    if ('phoneNumber' in data && data.phoneNumber !== undefined)
+      user.phoneNumber = data.phoneNumber;
+    if ('website' in data && data.website !== undefined)
+      user.website = data.website;
 
     return this.userRepository.save(user);
   }
