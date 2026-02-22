@@ -22,7 +22,6 @@ import {
   GetFollowersDto,
   FollowerListResponseDto,
   FollowStatusDto,
-  PaginationDto,
 } from './dto/follow.dto';
 
 @ApiTags('Social - Follow')

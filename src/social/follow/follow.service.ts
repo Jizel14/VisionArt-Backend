@@ -300,4 +300,16 @@ export class FollowService {
       where: { followerId: userId },
     });
   }
+
+  /**
+   * Get all user IDs that a user is following
+   * Returns a Set for O(1) lookup
+   */
+  async getFollowingIds(userId: string): Promise<Set<string>> {
+    const following = await this.followerRepository.find({
+      where: { followerId: userId },
+      select: ['followingId'],
+    });
+    return new Set(following.map((f) => f.followingId));
+  }
 }

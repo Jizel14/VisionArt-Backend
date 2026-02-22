@@ -215,16 +215,17 @@ export class ArtworkService {
     sort: string = 'recent',
   ) {
     // Get users that current user is following
-    const following = await this.artworkRepository.query(
-      `SELECT following_id FROM user_followers WHERE follower_id = ?`,
-      [userId],
-    );
+    const followingRaw: Array<{ following_id: string }> =
+      await this.artworkRepository.query(
+        `SELECT following_id FROM user_followers WHERE follower_id = ?`,
+        [userId],
+      );
 
-    const followingIds = [userId, ...following.map((f: any) => f.following_id)]; // Include self
+    const feedUserIds = [userId, ...followingRaw.map((f) => f.following_id)]; // Include self
 
     let query = this.artworkRepository
       .createQueryBuilder('artwork')
-      .where('artwork.userId IN (:...ids)', { ids: followingIds })
+      .where('artwork.userId IN (:...ids)', { ids: feedUserIds })
       .andWhere('artwork.isPublic = true')
       .leftJoinAndSelect('artwork.user', 'user')
       .leftJoinAndSelect('artwork.remixedFrom', 'remixedFrom')
@@ -250,7 +251,12 @@ export class ArtworkService {
       .take(limit)
       .getManyAndCount();
 
-    const data = artworks.map((a) => this.formatArtworkResponse(a, userId));
+    // Pre-fetch the current user's following list for efficient lookup
+    const followingIds = await this.followService.getFollowingIds(userId);
+
+    const data = artworks.map((a) =>
+      this.formatArtworkResponse(a, userId, followingIds),
+    );
 
     return {
       data,
@@ -297,7 +303,12 @@ export class ArtworkService {
       .take(limit)
       .getManyAndCount();
 
-    const data = artworks.map((a) => this.formatArtworkResponse(a, userId));
+    // Pre-fetch the current user's following list for efficient lookup
+    const followingIds = await this.followService.getFollowingIds(userId);
+
+    const data = artworks.map((a) =>
+      this.formatArtworkResponse(a, userId, followingIds),
+    );
 
     return {
       data,
@@ -410,33 +421,38 @@ export class ArtworkService {
   }
 
   /**
-   * Format artwork response with like status
+   * Format artwork response with like and follow status
    */
-  private formatArtworkResponse(artwork: Artwork, requesterId?: string) {
+  private formatArtworkResponse(
+    artwork: Artwork,
+    requesterId?: string,
+    followingIds?: Set<string>,
+  ) {
     if (!artwork.user) {
       console.error('Artwork found without user:', artwork.id);
-      // Return a dummy user to prevent crash, or skip invalid data in caller (but map expects return)
-      // Throwing might cause 500 for the whole feed.
-      // Better to return dummy structure that flags it visually?
-      // For now, assume user exists or use defaults.
     }
+
+    const authorId = artwork.user?.id || 'unknown';
+    // Determine if the requester is following this artwork's author
+    const isFollowedByMe =
+      requesterId && followingIds ? followingIds.has(authorId) : false;
 
     return {
       id: artwork.id,
       user: {
-        id: artwork.user?.id || 'unknown',
+        id: authorId,
         name: artwork.user?.name || 'Unknown User',
-        email: artwork.user?.email || '', // Required by frontend UserModel
+        email: artwork.user?.email || '',
         avatarUrl: artwork.user?.avatarUrl || null,
         bio: artwork.user?.bio || null,
         followersCount: artwork.user?.followersCount || 0,
-        followingCount: artwork.user?.followingCount || 0, // Required by frontend UserModel
-        publicGenerationsCount: artwork.user?.publicGenerationsCount || 0, // Required by frontend UserModel
+        followingCount: artwork.user?.followingCount || 0,
+        publicGenerationsCount: artwork.user?.publicGenerationsCount || 0,
         isVerified: artwork.user?.isVerified || false,
-        isPrivateAccount: artwork.user?.isPrivateAccount || false, // Required by frontend UserModel
+        isPrivateAccount: artwork.user?.isPrivateAccount || false,
         createdAt: artwork.user?.createdAt || new Date(),
         updatedAt:
-          artwork.user?.updatedAt || artwork.user?.createdAt || new Date(), // Required by frontend UserModel
+          artwork.user?.updatedAt || artwork.user?.createdAt || new Date(),
       },
       title: artwork.title,
       description: artwork.description,
@@ -446,6 +462,7 @@ export class ArtworkService {
       commentsCount: artwork.commentsCount || 0,
       remixCount: artwork.remixCount || 0,
       isLikedByMe: false, // Will be populated by LikeService if needed
+      isFollowedByMe,
       isPublic: artwork.isPublic,
       isNSFW: artwork.isNSFW,
       remixedFrom: artwork.remixedFrom
