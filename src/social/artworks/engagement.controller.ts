@@ -29,6 +29,8 @@ import {
   CommentsListResponseDto,
   GetLikesDto,
   GetCommentsDto,
+  SearchMentionUsersDto,
+  MentionUsersResponseDto,
 } from './dto/engagement.dto';
 
 @ApiTags('Social - Engagement (Likes & Comments)')
@@ -107,6 +109,17 @@ export class EngagementController {
     const sort = query.sort || 'newest';
 
     return this.commentService.findByArtwork(artworkId, page, limit, sort);
+  }
+
+  @Get('mentions/users')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Search users to mention in a comment' })
+  @ApiResponse({ status: 200, type: MentionUsersResponseDto })
+  async searchMentionUsers(@Query() query: SearchMentionUsersDto) {
+    const keyword = query.q?.trim() || '';
+    const limit = Math.min(query.limit || 8, 20);
+    return this.commentService.searchMentionUsers(keyword, limit);
   }
 
   @Patch(':artworkId/comments/:commentId')

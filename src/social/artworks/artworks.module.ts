@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Artwork } from './entities/artwork.entity';
 import { ArtworkLike } from './entities/artwork-like.entity';
 import { ArtworkComment } from './entities/artwork-comment.entity';
+import { ArtworkCommentMention } from './entities/artwork-comment-mention.entity';
 import { User } from '../../users/user.entity';
 import { ArtworkSave } from '../collections/entities/artwork-save.entity';
 import { ArtworksController } from './artworks.controller';
@@ -19,6 +20,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
       Artwork,
       ArtworkLike,
       ArtworkComment,
+      ArtworkCommentMention,
       ArtworkSave,
       User,
     ]),

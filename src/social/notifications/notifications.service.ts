@@ -93,6 +93,25 @@ export class NotificationsService {
     });
   }
 
+  async notifyMention(params: {
+    mentionedUserId: string;
+    actorUserId: string;
+    actorName: string;
+    artworkId: string;
+    artworkTitle?: string | null;
+  }) {
+    if (params.mentionedUserId === params.actorUserId) return;
+
+    await this.createNotification({
+      userId: params.mentionedUserId,
+      type: NotificationType.MENTION,
+      title: 'You were mentioned',
+      message: `${params.actorName} mentioned you in a comment${params.artworkTitle ? `: ${params.artworkTitle}` : ''}`,
+      actorUserId: params.actorUserId,
+      artworkId: params.artworkId,
+    });
+  }
+
   async getNotifications(userId: string, page: number = 1, limit: number = 20) {
     const [items, total] = await this.notificationsRepository.findAndCount({
       where: { userId },

@@ -5,12 +5,13 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, IsNull } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { ArtworkComment } from './entities/artwork-comment.entity';
 import { Artwork } from './entities/artwork.entity';
 import { User } from '../../users/user.entity';
 import { CreateCommentDto, UpdateCommentDto } from './dto/engagement.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ArtworkCommentMention } from './entities/artwork-comment-mention.entity';
 
 @Injectable()
 export class CommentService {
@@ -21,6 +22,8 @@ export class CommentService {
     private artworkRepository: Repository<Artwork>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    @InjectRepository(ArtworkCommentMention)
+    private mentionsRepository: Repository<ArtworkCommentMention>,
     private notificationsService: NotificationsService,
   ) {}
 
@@ -34,6 +37,11 @@ export class CommentService {
 
     if (!artwork) {
       throw new NotFoundException('Artwork not found');
+    }
+
+    const content = dto.content?.trim() || '';
+    if (!content) {
+      throw new BadRequestException('Comment content cannot be empty');
     }
 
     // Validate parent comment if provided
@@ -51,12 +59,16 @@ export class CommentService {
           'Parent comment does not belong to this artwork',
         );
       }
+
+      if (parentComment.parentCommentId) {
+        throw new BadRequestException('Only one level of replies is supported');
+      }
     }
 
     const comment = this.commentRepository.create({
       userId,
       artworkId,
-      content: dto.content,
+      content,
       parentCommentId: dto.parentCommentId || null,
     });
 
@@ -70,6 +82,35 @@ export class CommentService {
     );
 
     const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    const mentionIds = await this.resolveMentionedUserIds(
+      dto.mentionedUserIds,
+      userId,
+    );
+
+    if (mentionIds.length > 0) {
+      const mentionRows = mentionIds.map((mentionedUserId) =>
+        this.mentionsRepository.create({
+          commentId: saved.id,
+          mentionedUserId,
+        }),
+      );
+      await this.mentionsRepository.save(mentionRows);
+
+      await Promise.all(
+        mentionIds
+          .filter((mentionedUserId) => mentionedUserId !== artwork.userId)
+          .map((mentionedUserId) =>
+            this.notificationsService.notifyMention({
+              mentionedUserId,
+              actorUserId: userId,
+              actorName: user?.name || 'Someone',
+              artworkId,
+              artworkTitle: artwork.title,
+            }),
+          ),
+      );
+    }
 
     await this.notificationsService.notifyComment({
       commenterId: userId,
@@ -162,7 +203,12 @@ export class CommentService {
       throw new ForbiddenException('You can only edit your own comments');
     }
 
-    comment.content = dto.content;
+    const content = dto.content?.trim() || '';
+    if (!content) {
+      throw new BadRequestException('Comment content cannot be empty');
+    }
+
+    comment.content = content;
     comment.isEdited = true;
 
     const updated = await this.commentRepository.save(comment);
@@ -188,17 +234,22 @@ export class CommentService {
 
     const artworkId = comment.artworkId;
 
+    let deletedCount = 1;
+    if (!comment.parentCommentId) {
+      const repliesCount = await this.commentRepository.count({
+        where: { parentCommentId: comment.id },
+      });
+      deletedCount += repliesCount;
+    }
+
     // Delete comment (and cascade delete replies)
     await this.commentRepository.remove(comment);
 
-    // Decrement comments count (only for top-level comments)
-    if (!comment.parentCommentId) {
-      await this.artworkRepository.decrement(
-        { id: artworkId },
-        'commentsCount',
-        1,
-      );
-    }
+    await this.artworkRepository.decrement(
+      { id: artworkId },
+      'commentsCount',
+      deletedCount,
+    );
 
     return { success: true, message: 'Comment deleted successfully' };
   }
@@ -210,6 +261,51 @@ export class CommentService {
     return this.commentRepository.count({
       where: { artworkId },
     });
+  }
+
+  async searchMentionUsers(query: string, limit: number = 8) {
+    if (!query || query.trim().length < 1) {
+      return { data: [] };
+    }
+
+    const keyword = query.trim().toLowerCase();
+
+    const users = await this.userRepository
+      .createQueryBuilder('user')
+      .where('LOWER(user.name) LIKE :q', { q: `%${keyword}%` })
+      .orderBy('user.name', 'ASC')
+      .take(limit)
+      .getMany();
+
+    return {
+      data: users.map((user) => ({
+        id: user.id,
+        name: user.name,
+        avatarUrl: user.avatarUrl,
+      })),
+    };
+  }
+
+  private async resolveMentionedUserIds(
+    rawMentionedUserIds: string[] | undefined,
+    actorUserId: string,
+  ): Promise<string[]> {
+    const uniqueRequested = Array.from(
+      new Set((rawMentionedUserIds ?? []).filter(Boolean)),
+    );
+
+    if (uniqueRequested.length === 0) {
+      return [];
+    }
+
+    const existingUsers = await this.userRepository.find({
+      where: { id: In(uniqueRequested) },
+      select: ['id'],
+    });
+
+    return existingUsers
+      .map((user) => user.id)
+      .filter((id) => id !== actorUserId);
   }
 
   /**
@@ -227,6 +323,7 @@ export class CommentService {
         avatarUrl: user.avatarUrl,
       },
       content: comment.content,
+      parentCommentId: comment.parentCommentId,
       isEdited: comment.isEdited,
       createdAt: comment.createdAt,
     };

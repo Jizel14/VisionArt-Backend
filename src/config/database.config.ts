@@ -5,6 +5,7 @@ import { UserFollower } from 'src/social/follow/entities/user-follower.entity';
 import { Artwork } from 'src/social/artworks/entities/artwork.entity';
 import { ArtworkLike } from 'src/social/artworks/entities/artwork-like.entity';
 import { ArtworkComment } from 'src/social/artworks/entities/artwork-comment.entity';
+import { ArtworkCommentMention } from 'src/social/artworks/entities/artwork-comment-mention.entity';
 import { ArtworkReport } from 'src/social/moderation/entities/artwork-report.entity';
 import { ArtworkSave } from 'src/social/collections/entities/artwork-save.entity';
 import { UserNotification } from 'src/social/notifications/entities/user-notification.entity';
@@ -23,6 +24,7 @@ export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
     Artwork,
     ArtworkLike,
     ArtworkComment,
+    ArtworkCommentMention,
     ArtworkReport,
     ArtworkSave,
     UserNotification,
