@@ -5,8 +5,9 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Artwork } from './entities/artwork.entity';
+import { ArtworkLike } from './entities/artwork-like.entity';
 import { User } from '../../users/user.entity';
 import { CreateArtworkDto, UpdateArtworkDto } from './dto/artwork.dto';
 import { FollowService } from '../follow/follow.service';
@@ -16,6 +17,8 @@ export class ArtworkService {
   constructor(
     @InjectRepository(Artwork)
     private artworkRepository: Repository<Artwork>,
+    @InjectRepository(ArtworkLike)
+    private artworkLikeRepository: Repository<ArtworkLike>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
     private followService: FollowService,
@@ -90,7 +93,17 @@ export class ArtworkService {
       );
     }
 
-    return this.formatArtworkResponse(artwork, requesterId);
+    const likedArtworkIds = await this.getLikedArtworkIds(
+      requesterId,
+      requesterId ? [artwork.id] : [],
+    );
+
+    return this.formatArtworkResponse(
+      artwork,
+      requesterId,
+      undefined,
+      likedArtworkIds,
+    );
   }
 
   /**
@@ -118,8 +131,14 @@ export class ArtworkService {
 
     const [artworks, total] = await query.getManyAndCount();
 
+    const artworkIds = artworks.map((artwork) => artwork.id);
+    const likedArtworkIds = await this.getLikedArtworkIds(
+      requesterId,
+      artworkIds,
+    );
+
     const data = artworks.map((a) =>
-      this.formatArtworkResponse(a, requesterId),
+      this.formatArtworkResponse(a, requesterId, undefined, likedArtworkIds),
     );
 
     return {
@@ -253,9 +272,11 @@ export class ArtworkService {
 
     // Pre-fetch the current user's following list for efficient lookup
     const followingIds = await this.followService.getFollowingIds(userId);
+    const artworkIds = artworks.map((artwork) => artwork.id);
+    const likedArtworkIds = await this.getLikedArtworkIds(userId, artworkIds);
 
     const data = artworks.map((a) =>
-      this.formatArtworkResponse(a, userId, followingIds),
+      this.formatArtworkResponse(a, userId, followingIds, likedArtworkIds),
     );
 
     return {
@@ -305,9 +326,11 @@ export class ArtworkService {
 
     // Pre-fetch the current user's following list for efficient lookup
     const followingIds = await this.followService.getFollowingIds(userId);
+    const artworkIds = artworks.map((artwork) => artwork.id);
+    const likedArtworkIds = await this.getLikedArtworkIds(userId, artworkIds);
 
     const data = artworks.map((a) =>
-      this.formatArtworkResponse(a, userId, followingIds),
+      this.formatArtworkResponse(a, userId, followingIds, likedArtworkIds),
     );
 
     return {
@@ -427,6 +450,7 @@ export class ArtworkService {
     artwork: Artwork,
     requesterId?: string,
     followingIds?: Set<string>,
+    likedArtworkIds?: Set<string>,
   ) {
     if (!artwork.user) {
       console.error('Artwork found without user:', artwork.id);
@@ -436,6 +460,9 @@ export class ArtworkService {
     // Determine if the requester is following this artwork's author
     const isFollowedByMe =
       requesterId && followingIds ? followingIds.has(authorId) : false;
+    const isLikedByMe = likedArtworkIds
+      ? likedArtworkIds.has(artwork.id)
+      : false;
 
     return {
       id: artwork.id,
@@ -461,7 +488,7 @@ export class ArtworkService {
       likesCount: artwork.likesCount || 0,
       commentsCount: artwork.commentsCount || 0,
       remixCount: artwork.remixCount || 0,
-      isLikedByMe: false, // Will be populated by LikeService if needed
+      isLikedByMe,
       isFollowedByMe,
       isPublic: artwork.isPublic,
       isNSFW: artwork.isNSFW,
@@ -473,5 +500,24 @@ export class ArtworkService {
         : null,
       createdAt: artwork.createdAt,
     };
+  }
+
+  private async getLikedArtworkIds(
+    userId: string | undefined,
+    artworkIds: string[],
+  ): Promise<Set<string>> {
+    if (!userId || artworkIds.length === 0) {
+      return new Set<string>();
+    }
+
+    const likes = await this.artworkLikeRepository.find({
+      where: {
+        userId,
+        artworkId: In(artworkIds),
+      },
+      select: ['artworkId'],
+    });
+
+    return new Set(likes.map((like) => like.artworkId));
   }
 }
