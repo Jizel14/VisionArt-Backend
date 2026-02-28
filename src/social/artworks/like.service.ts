@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { ArtworkLike } from './entities/artwork-like.entity';
 import { Artwork } from './entities/artwork.entity';
 import { User } from '../../users/user.entity';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class LikeService {
@@ -14,6 +15,7 @@ export class LikeService {
     private artworkRepository: Repository<Artwork>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    private notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -51,6 +53,15 @@ export class LikeService {
 
     // Increment likes count
     await this.artworkRepository.increment({ id: artworkId }, 'likesCount', 1);
+
+    const liker = await this.userRepository.findOne({ where: { id: userId } });
+    await this.notificationsService.notifyLike({
+      likerId: userId,
+      likerName: liker?.name || 'Someone',
+      artworkOwnerId: artwork.userId,
+      artworkId,
+      artworkTitle: artwork.title,
+    });
 
     // Fetch updated artwork to return count
     const updated = await this.artworkRepository.findOne({

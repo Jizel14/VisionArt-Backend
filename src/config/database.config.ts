@@ -6,6 +6,8 @@ import { Artwork } from 'src/social/artworks/entities/artwork.entity';
 import { ArtworkLike } from 'src/social/artworks/entities/artwork-like.entity';
 import { ArtworkComment } from 'src/social/artworks/entities/artwork-comment.entity';
 import { ArtworkReport } from 'src/social/moderation/entities/artwork-report.entity';
+import { ArtworkSave } from 'src/social/collections/entities/artwork-save.entity';
+import { UserNotification } from 'src/social/notifications/entities/user-notification.entity';
 
 export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
   type: 'mysql',
@@ -22,6 +24,8 @@ export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
     ArtworkLike,
     ArtworkComment,
     ArtworkReport,
+    ArtworkSave,
+    UserNotification,
   ],
   synchronize: process.env.DB_SYNCHRONIZE === 'true',
   logging: process.env.DB_LOGGING === 'true',

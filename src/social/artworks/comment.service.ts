@@ -10,6 +10,7 @@ import { ArtworkComment } from './entities/artwork-comment.entity';
 import { Artwork } from './entities/artwork.entity';
 import { User } from '../../users/user.entity';
 import { CreateCommentDto, UpdateCommentDto } from './dto/engagement.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class CommentService {
@@ -20,6 +21,7 @@ export class CommentService {
     private artworkRepository: Repository<Artwork>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    private notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -68,6 +70,14 @@ export class CommentService {
     );
 
     const user = await this.userRepository.findOne({ where: { id: userId } });
+
+    await this.notificationsService.notifyComment({
+      commenterId: userId,
+      commenterName: user?.name || 'Someone',
+      artworkOwnerId: artwork.userId,
+      artworkId,
+      artworkTitle: artwork.title,
+    });
 
     return this.formatCommentResponse(saved, user!);
   }

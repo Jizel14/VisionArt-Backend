@@ -9,6 +9,7 @@ import { Repository } from 'typeorm';
 import { UserFollower } from './entities/user-follower.entity';
 import { User } from '../../users/user.entity';
 import { UsersService } from '../../users/users.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class FollowService {
@@ -18,6 +19,7 @@ export class FollowService {
     @InjectRepository(User)
     private userRepository: Repository<User>,
     private usersService: UsersService,
+    private notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -81,6 +83,12 @@ export class FollowService {
       'followersCount',
       1,
     );
+
+    await this.notificationsService.notifyFollow({
+      followerId,
+      followerName: follower.name,
+      followedUserId: followingId,
+    });
 
     return {
       success: true,

@@ -145,6 +145,9 @@ export class ArtworkResponseDto {
   isLikedByMe: boolean;
 
   @ApiProperty()
+  isSavedByMe: boolean;
+
+  @ApiProperty()
   isPublic: boolean;
 
   @ApiProperty()
