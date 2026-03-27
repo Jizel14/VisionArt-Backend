@@ -73,7 +73,11 @@ jobs:
           echo "::error title=Build failed::TypeScript compilation error. Download the 'build-errors-${{ github.sha }}' artifact for details."
           exit 1
 
-      # ── 6. Docker login ───────────────────────────────────────────────────────
+      # ── 6. Set lowercase image name ──────────────────────────────────────────
+      - name: Set image name (lowercase)
+        run: echo "IMAGE=ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/visionart-backend" >> $GITHUB_ENV
+
+      # ── 7. Docker login ───────────────────────────────────────────────────────
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -81,7 +85,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # ── 7. Docker build & push ────────────────────────────────────────────────
+      # ── 8. Docker build & push ────────────────────────────────────────────────
       - name: Build & push Docker image
         id: docker
         uses: docker/build-push-action@v5
@@ -90,8 +94,8 @@ jobs:
           target: production
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/visionart-backend:dev
-            ghcr.io/${{ github.repository_owner }}/visionart-backend:dev-${{ github.sha }}
+            ${{ env.IMAGE }}:dev
+            ${{ env.IMAGE }}:dev-${{ github.sha }}
 
       # ── 8. Summary ────────────────────────────────────────────────────────────
       - name: Write success summary
@@ -105,7 +109,7 @@ jobs:
           echo "| Build | OK |" >> $GITHUB_STEP_SUMMARY
           echo "| Docker push | OK |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Image**: \`ghcr.io/${{ github.repository_owner }}/visionart-backend:dev-${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Image**: \`${{ env.IMAGE }}:dev-${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
 
       - name: Write failure summary
         if: failure()
