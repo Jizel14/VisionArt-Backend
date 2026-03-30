@@ -8,6 +8,7 @@ import { UsersModule } from './users/users.module';
 import { UserPreferencesModule } from './user-preferences/user-preferences.module';
 import { SocialModule } from './social/social.module';
 import { SeederModule } from './seeders/seeder.module';
+import { MarketplaceModule } from './marketplace/marketplace.module';
 import { getDatabaseConfig } from './config/database.config';
 
 @Module({
@@ -21,6 +22,7 @@ import { getDatabaseConfig } from './config/database.config';
     UsersModule,
     UserPreferencesModule,
     SocialModule,
+    MarketplaceModule,
     SeederModule,
   ],
   controllers: [AppController],
