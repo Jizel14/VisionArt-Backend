@@ -39,6 +39,11 @@ export class WithdrawDto extends WalletAmountDto {
   @IsString()
   @IsEthereumAddress()
   destinationAddress?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['POL', 'USDC'])
+  tokenType?: string;
 }
 
 export class CreateListingDto {
@@ -71,9 +76,71 @@ export class CreateListingDto {
 
 export class BuyListingDto {
   @IsOptional()
+  @IsUUID()
+  negotiationId?: string;
+
+  @IsOptional()
   @IsString()
   @MaxLength(120)
   txHash?: string;
+}
+
+export class CreateNegotiationRequestDto {
+  @IsUUID()
+  listingId: string;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 6 })
+  @Min(0.000001)
+  amount: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  message?: string;
+}
+
+export class RespondNegotiationDto {
+  @IsString()
+  @IsIn(['accept', 'deny'])
+  action: 'accept' | 'deny';
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  message?: string;
+}
+
+export class SendNegotiationMessageDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  message?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 6 })
+  @Min(0.000001)
+  offerAmount?: number;
+}
+
+export class ListNegotiationsDto {
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  page?: number;
+
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  limit?: number;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['pending', 'accepted', 'denied', 'closed', 'all'])
+  status?: string;
 }
 
 export class ReconcileTransactionDto {

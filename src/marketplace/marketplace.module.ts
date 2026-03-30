@@ -5,6 +5,8 @@ import { MarketplaceService } from './marketplace.service';
 import { MarketplaceWallet } from './entities/marketplace-wallet.entity';
 import { MarketplaceWalletTransaction } from './entities/marketplace-wallet-transaction.entity';
 import { MarketplaceListing } from './entities/marketplace-listing.entity';
+import { MarketplaceNegotiation } from './entities/marketplace-negotiation.entity';
+import { MarketplaceNegotiationMessage } from './entities/marketplace-negotiation-message.entity';
 import { Artwork } from '../social/artworks/entities/artwork.entity';
 import { User } from '../users/user.entity';
 
@@ -14,6 +16,8 @@ import { User } from '../users/user.entity';
       MarketplaceWallet,
       MarketplaceWalletTransaction,
       MarketplaceListing,
+      MarketplaceNegotiation,
+      MarketplaceNegotiationMessage,
       Artwork,
       User,
     ]),

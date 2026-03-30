@@ -12,6 +12,8 @@ import { UserNotification } from 'src/social/notifications/entities/user-notific
 import { MarketplaceWallet } from 'src/marketplace/entities/marketplace-wallet.entity';
 import { MarketplaceWalletTransaction } from 'src/marketplace/entities/marketplace-wallet-transaction.entity';
 import { MarketplaceListing } from 'src/marketplace/entities/marketplace-listing.entity';
+import { MarketplaceNegotiation } from 'src/marketplace/entities/marketplace-negotiation.entity';
+import { MarketplaceNegotiationMessage } from 'src/marketplace/entities/marketplace-negotiation-message.entity';
 
 export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
   type: 'mysql',
@@ -34,6 +36,8 @@ export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
     MarketplaceWallet,
     MarketplaceWalletTransaction,
     MarketplaceListing,
+    MarketplaceNegotiation,
+    MarketplaceNegotiationMessage,
   ],
   synchronize: process.env.DB_SYNCHRONIZE === 'true',
   logging: process.env.DB_LOGGING === 'true',

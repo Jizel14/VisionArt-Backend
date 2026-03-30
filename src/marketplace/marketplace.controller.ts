@@ -15,9 +15,13 @@ import {
 import {
   BuyListingDto,
   ConnectWalletDto,
+  CreateNegotiationRequestDto,
   CreateListingDto,
   ListListingsDto,
+  ListNegotiationsDto,
   ReconcileTransactionDto,
+  RespondNegotiationDto,
+  SendNegotiationMessageDto,
   WalletAmountDto,
   WithdrawDto,
 } from './dto/marketplace.dto';
@@ -70,6 +74,7 @@ export class MarketplaceController {
       dto.destinationAddress,
       dto.reference,
       dto.txHash,
+      dto.tokenType,
     );
   }
 
@@ -116,7 +121,78 @@ export class MarketplaceController {
     @Param('listingId') listingId: string,
     @Body() dto: BuyListingDto,
   ) {
-    return this.marketplaceService.buyListing(userId, listingId, dto.txHash);
+    return this.marketplaceService.buyListing(
+      userId,
+      listingId,
+      dto.negotiationId,
+      dto.txHash,
+    );
+  }
+
+  @Post('negotiations/request')
+  async createNegotiationRequest(
+    @CurrentUser() userId: string,
+    @Body() dto: CreateNegotiationRequestDto,
+  ) {
+    return this.marketplaceService.createNegotiationRequest(userId, dto);
+  }
+
+  @Post('negotiations/:negotiationId/respond')
+  async respondNegotiation(
+    @CurrentUser() userId: string,
+    @Param('negotiationId') negotiationId: string,
+    @Body() dto: RespondNegotiationDto,
+  ) {
+    return this.marketplaceService.respondNegotiation(
+      userId,
+      negotiationId,
+      dto.action,
+      dto.message,
+    );
+  }
+
+  @Get('negotiations')
+  async listMyNegotiations(
+    @CurrentUser() userId: string,
+    @Query() query: ListNegotiationsDto,
+  ) {
+    const page = query.page || 1;
+    const limit = Math.min(query.limit || 20, 100);
+    const status = query.status || 'all';
+    return this.marketplaceService.listMyNegotiations(
+      userId,
+      page,
+      limit,
+      status,
+    );
+  }
+
+  @Get('negotiations/:negotiationId/messages')
+  async listNegotiationMessages(
+    @CurrentUser() userId: string,
+    @Param('negotiationId') negotiationId: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.marketplaceService.listNegotiationMessages(
+      userId,
+      negotiationId,
+      Number(page || 1),
+      Math.min(Number(limit || 50), 100),
+    );
+  }
+
+  @Post('negotiations/:negotiationId/messages')
+  async sendNegotiationMessage(
+    @CurrentUser() userId: string,
+    @Param('negotiationId') negotiationId: string,
+    @Body() dto: SendNegotiationMessageDto,
+  ) {
+    return this.marketplaceService.sendNegotiationMessage(
+      userId,
+      negotiationId,
+      dto,
+    );
   }
 
   @Get('wallet/:address/balance')

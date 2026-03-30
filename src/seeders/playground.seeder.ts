@@ -126,7 +126,7 @@ export class PlaygroundSeeder {
         isPrivateAccount: false,
       },
       {
-        email: 'carlos.designs@test.com',
+        email: 'c',
         name: 'Carlos Designs',
         password: 'TestPassword123!',
         bio: 'UI/UX designer and digital artist',

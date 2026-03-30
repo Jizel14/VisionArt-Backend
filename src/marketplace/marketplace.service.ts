@@ -5,12 +5,35 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, DataSource, Repository } from 'typeorm';
+import { Brackets, DataSource, In, Repository } from 'typeorm';
 import { ethers } from 'ethers';
 import { MarketplaceWallet } from './entities/marketplace-wallet.entity';
 import { MarketplaceWalletTransaction } from './entities/marketplace-wallet-transaction.entity';
 import { MarketplaceListing } from './entities/marketplace-listing.entity';
+import { MarketplaceNegotiation } from './entities/marketplace-negotiation.entity';
+import { MarketplaceNegotiationMessage } from './entities/marketplace-negotiation-message.entity';
 import { Artwork } from '../social/artworks/entities/artwork.entity';
+
+// Minimal ERC20 ABI for transfer only
+const ERC20_ABI = [
+  {
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    name: 'transfer',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ name: 'account', type: 'address' }],
+    name: 'balanceOf',
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+];
 
 @Injectable()
 export class MarketplaceService {
@@ -23,6 +46,10 @@ export class MarketplaceService {
     private readonly walletTxRepo: Repository<MarketplaceWalletTransaction>,
     @InjectRepository(MarketplaceListing)
     private readonly listingRepo: Repository<MarketplaceListing>,
+    @InjectRepository(MarketplaceNegotiation)
+    private readonly negotiationRepo: Repository<MarketplaceNegotiation>,
+    @InjectRepository(MarketplaceNegotiationMessage)
+    private readonly negotiationMessageRepo: Repository<MarketplaceNegotiationMessage>,
     @InjectRepository(Artwork)
     private readonly artworkRepo: Repository<Artwork>,
   ) {}
@@ -76,6 +103,42 @@ export class MarketplaceService {
 
     const provider = new ethers.JsonRpcProvider(this.rpcUrl);
     return new ethers.Wallet(key, provider);
+  }
+
+  private get usdcContractAddress(): string | null {
+    const configured = this.configService
+      .get<string>('WEB3_USDC_CONTRACT_ADDRESS')
+      ?.trim();
+    return configured?.length ? configured.toLowerCase() : null;
+  }
+
+  private getErc20Contract(contractAddress: string): ethers.Contract {
+    const signer = this.treasurySigner;
+    return new ethers.Contract(contractAddress, ERC20_ABI, signer);
+  }
+
+  private async sendUsdcTransfer(
+    destinationAddress: string,
+    amountUnits: bigint,
+  ): Promise<string> {
+    const usdcAddress = this.usdcContractAddress;
+    if (!usdcAddress) {
+      throw new BadRequestException(
+        'WEB3_USDC_CONTRACT_ADDRESS is not configured',
+      );
+    }
+
+    const contract = this.getErc20Contract(usdcAddress);
+    const tx = await contract.transfer(destinationAddress, amountUnits);
+    const receipt = await tx.wait();
+
+    if (!receipt || receipt.status !== 1) {
+      throw new BadRequestException(
+        'USDC transfer transaction failed on-chain',
+      );
+    }
+
+    return tx.hash;
   }
 
   private async getOrCreateWallet(userId: string): Promise<MarketplaceWallet> {
@@ -278,9 +341,14 @@ export class MarketplaceService {
     destinationAddress?: string,
     reference?: string,
     txHash?: string,
+    tokenType: string = 'POL',
   ) {
     if (amount <= 0) {
       throw new BadRequestException('Amount must be greater than 0');
+    }
+
+    if (!['POL', 'USDC'].includes(tokenType)) {
+      throw new BadRequestException('Invalid token type. Use POL or USDC');
     }
 
     let chainVerification: Record<string, unknown> | null = null;
@@ -308,26 +376,72 @@ export class MarketplaceService {
       const signer = this.treasurySigner;
       const signerAddress = signer.address.toLowerCase();
 
-      const amountUnits = ethers.parseUnits(amount.toFixed(6), 18);
-      const treasuryBalance = await signer.provider!.getBalance(signerAddress);
-      if (treasuryBalance < amountUnits) {
-        throw new BadRequestException(
-          'Treasury wallet has insufficient on-chain POL for this withdraw',
+      if (tokenType === 'POL') {
+        // Native POL transfer
+        const amountUnits = ethers.parseUnits(amount.toFixed(6), 18);
+        const treasuryBalance =
+          await signer.provider!.getBalance(signerAddress);
+        if (treasuryBalance < amountUnits) {
+          throw new BadRequestException(
+            'Treasury wallet has insufficient on-chain POL for this withdraw',
+          );
+        }
+
+        const chainTx = await signer.sendTransaction({
+          to: normalizedDestination,
+          value: amountUnits,
+        });
+        const receipt = await chainTx.wait();
+
+        if (!receipt || receipt.status !== 1) {
+          throw new BadRequestException('Withdraw transaction failed on-chain');
+        }
+
+        effectiveTxHash = chainTx.hash;
+      } else if (tokenType === 'USDC') {
+        // ERC20 USDC transfer (6 decimals)
+        const amountUnits = ethers.parseUnits(amount.toFixed(6), 6);
+
+        // Verify USDC contract is deployed
+        const usdcAddress = this.usdcContractAddress;
+        if (!usdcAddress) {
+          throw new BadRequestException(
+            'WEB3_USDC_CONTRACT_ADDRESS is not configured',
+          );
+        }
+
+        const code = await this.rpcCall<string>('eth_getCode', [
+          usdcAddress,
+          'latest',
+        ]);
+        if (code === '0x') {
+          throw new BadRequestException(
+            'USDC contract is not deployed on this chain',
+          );
+        }
+
+        // Get USDC contract and check balance
+        const contract = this.getErc20Contract(usdcAddress);
+        const usdcBalance = await contract.balanceOf(signerAddress);
+        if (usdcBalance < amountUnits) {
+          throw new BadRequestException(
+            'Treasury wallet has insufficient on-chain USDC for this withdraw',
+          );
+        }
+
+        effectiveTxHash = await this.sendUsdcTransfer(
+          normalizedDestination,
+          amountUnits,
         );
       }
 
-      const chainTx = await signer.sendTransaction({
-        to: normalizedDestination,
-        value: amountUnits,
-      });
-      const receipt = await chainTx.wait();
-
-      if (!receipt || receipt.status !== 1) {
-        throw new BadRequestException('Withdraw transaction failed on-chain');
+      if (!effectiveTxHash) {
+        throw new BadRequestException(
+          'Failed to get transaction hash from on-chain transfer',
+        );
       }
 
-      effectiveTxHash = chainTx.hash;
-      chainVerification = await this.verifyTransaction(chainTx.hash);
+      chainVerification = await this.verifyTransaction(effectiveTxHash);
     } else if (effectiveTxHash) {
       if (!this.isValidTxHash(effectiveTxHash)) {
         throw new BadRequestException('Invalid tx hash');
@@ -344,11 +458,12 @@ export class MarketplaceService {
       type: 'withdraw',
       status: 'completed',
       amount: this.amountToStorage(amount),
-      currency: wallet.currency,
+      currency: tokenType === 'USDC' ? 'USDC' : 'POL',
       reference: reference?.trim() || null,
       metadata: {
         destinationAddress: normalizedDestination,
         txHash: effectiveTxHash,
+        tokenType,
         chainVerification,
       },
     });
@@ -359,6 +474,7 @@ export class MarketplaceService {
       balance: this.toAmount(wallet.availableBalance),
       transactionId: transaction.id,
       txHash: effectiveTxHash,
+      tokenType,
     };
   }
 
@@ -466,11 +582,346 @@ export class MarketplaceService {
     return { success: true };
   }
 
-  async buyListing(userId: string, listingId: string, txHash?: string) {
+  async createNegotiationRequest(
+    userId: string,
+    payload: { listingId: string; amount: number; message?: string },
+  ) {
+    if (payload.amount <= 0) {
+      throw new BadRequestException('Amount must be greater than 0');
+    }
+
+    const listing = await this.listingRepo.findOne({
+      where: { id: payload.listingId },
+    });
+    if (!listing) {
+      throw new NotFoundException('Listing not found');
+    }
+    if (!listing.isActive) {
+      throw new BadRequestException('Listing is not active');
+    }
+    if (!listing.negotiable) {
+      throw new BadRequestException('Listing is not negotiable');
+    }
+    if (listing.sellerId === userId) {
+      throw new BadRequestException('Seller cannot negotiate with own listing');
+    }
+
+    const existingOpen = await this.negotiationRepo.findOne({
+      where: {
+        listingId: listing.id,
+        requesterId: userId,
+        status: In(['pending', 'accepted']),
+      },
+    });
+    if (existingOpen) {
+      throw new BadRequestException(
+        'You already have a pending negotiation for this listing',
+      );
+    }
+
+    const negotiation = this.negotiationRepo.create({
+      listingId: listing.id,
+      requesterId: userId,
+      sellerId: listing.sellerId,
+      status: 'pending',
+      initialAmount: this.amountToStorage(payload.amount),
+      latestAmount: this.amountToStorage(payload.amount),
+      currency: listing.currency,
+      initialMessage: payload.message?.trim() || null,
+      acceptedAt: null,
+      closedAt: null,
+    });
+    const saved = await this.negotiationRepo.save(negotiation);
+
+    const initialMessage = this.negotiationMessageRepo.create({
+      negotiationId: saved.id,
+      senderId: userId,
+      type: 'offer',
+      message: payload.message?.trim() || null,
+      offerAmount: this.amountToStorage(payload.amount),
+    });
+    await this.negotiationMessageRepo.save(initialMessage);
+
+    return {
+      id: saved.id,
+      listingId: saved.listingId,
+      requesterId: saved.requesterId,
+      sellerId: saved.sellerId,
+      status: saved.status,
+      initialAmount: this.toAmount(saved.initialAmount),
+      latestAmount: this.toAmount(saved.latestAmount ?? saved.initialAmount),
+      currency: saved.currency,
+      initialMessage: saved.initialMessage,
+      createdAt: saved.createdAt,
+    };
+  }
+
+  async respondNegotiation(
+    userId: string,
+    negotiationId: string,
+    action: 'accept' | 'deny',
+    message?: string,
+  ) {
+    const negotiation = await this.negotiationRepo.findOne({
+      where: { id: negotiationId },
+    });
+    if (!negotiation) {
+      throw new NotFoundException('Negotiation not found');
+    }
+    if (negotiation.sellerId !== userId) {
+      throw new BadRequestException(
+        'Only seller can accept or deny negotiation',
+      );
+    }
+    if (negotiation.status !== 'pending') {
+      throw new BadRequestException('Negotiation is no longer pending');
+    }
+
+    if (action === 'accept') {
+      negotiation.status = 'accepted';
+      negotiation.acceptedAt = new Date();
+    } else {
+      negotiation.status = 'denied';
+      negotiation.closedAt = new Date();
+    }
+    await this.negotiationRepo.save(negotiation);
+
+    if (message?.trim().length) {
+      const decisionMessage = this.negotiationMessageRepo.create({
+        negotiationId: negotiation.id,
+        senderId: userId,
+        type: 'message',
+        message: message.trim(),
+        offerAmount: null,
+      });
+      await this.negotiationMessageRepo.save(decisionMessage);
+    }
+
+    return {
+      id: negotiation.id,
+      status: negotiation.status,
+      acceptedAt: negotiation.acceptedAt,
+      closedAt: negotiation.closedAt,
+      messagingOpen: negotiation.status === 'accepted',
+    };
+  }
+
+  async sendNegotiationMessage(
+    userId: string,
+    negotiationId: string,
+    payload: { message?: string; offerAmount?: number },
+  ) {
+    const hasMessage = !!payload.message?.trim().length;
+    const hasOffer = typeof payload.offerAmount === 'number';
+    if (!hasMessage && !hasOffer) {
+      throw new BadRequestException('Provide message and/or offer amount');
+    }
+
+    const negotiation = await this.negotiationRepo.findOne({
+      where: { id: negotiationId },
+    });
+    if (!negotiation) {
+      throw new NotFoundException('Negotiation not found');
+    }
+    if (![negotiation.requesterId, negotiation.sellerId].includes(userId)) {
+      throw new BadRequestException('You are not part of this negotiation');
+    }
+    if (negotiation.status !== 'accepted') {
+      throw new BadRequestException(
+        'Messaging opens only after negotiation is accepted',
+      );
+    }
+
+    let messageType = 'message';
+    let offerAmount: string | null = null;
+    if (hasOffer) {
+      const numericOffer = Number(payload.offerAmount);
+      if (!Number.isFinite(numericOffer) || numericOffer <= 0) {
+        throw new BadRequestException('Offer amount must be greater than 0');
+      }
+      offerAmount = this.amountToStorage(numericOffer);
+      negotiation.latestAmount = offerAmount;
+      await this.negotiationRepo.save(negotiation);
+      messageType = 'offer';
+    }
+
+    const message = this.negotiationMessageRepo.create({
+      negotiationId: negotiation.id,
+      senderId: userId,
+      type: messageType,
+      message: payload.message?.trim() || null,
+      offerAmount,
+    });
+    const saved = await this.negotiationMessageRepo.save(message);
+
+    return {
+      id: saved.id,
+      negotiationId: saved.negotiationId,
+      senderId: saved.senderId,
+      type: saved.type,
+      message: saved.message,
+      offerAmount: saved.offerAmount ? this.toAmount(saved.offerAmount) : null,
+      createdAt: saved.createdAt,
+      currentNegotiatedAmount: negotiation.latestAmount
+        ? this.toAmount(negotiation.latestAmount)
+        : null,
+    };
+  }
+
+  async listNegotiationMessages(
+    userId: string,
+    negotiationId: string,
+    page = 1,
+    limit = 50,
+  ) {
+    const negotiation = await this.negotiationRepo.findOne({
+      where: { id: negotiationId },
+    });
+    if (!negotiation) {
+      throw new NotFoundException('Negotiation not found');
+    }
+    if (![negotiation.requesterId, negotiation.sellerId].includes(userId)) {
+      throw new BadRequestException('You are not part of this negotiation');
+    }
+
+    const safePage = Math.max(page, 1);
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+
+    const [rows, total] = await this.negotiationMessageRepo.findAndCount({
+      where: { negotiationId },
+      relations: ['sender'],
+      order: { createdAt: 'ASC' },
+      skip: (safePage - 1) * safeLimit,
+      take: safeLimit,
+    });
+
+    return {
+      negotiation: {
+        id: negotiation.id,
+        listingId: negotiation.listingId,
+        status: negotiation.status,
+        latestAmount: negotiation.latestAmount
+          ? this.toAmount(negotiation.latestAmount)
+          : this.toAmount(negotiation.initialAmount),
+        currency: negotiation.currency,
+      },
+      data: rows.map((row) => ({
+        id: row.id,
+        senderId: row.senderId,
+        sender: row.sender
+          ? {
+              id: row.sender.id,
+              name: row.sender.name,
+              avatarUrl: row.sender.avatarUrl,
+            }
+          : null,
+        type: row.type,
+        message: row.message,
+        offerAmount: row.offerAmount ? this.toAmount(row.offerAmount) : null,
+        createdAt: row.createdAt,
+      })),
+      pagination: {
+        page: safePage,
+        limit: safeLimit,
+        total,
+        totalPages: Math.ceil(total / safeLimit),
+      },
+    };
+  }
+
+  async listMyNegotiations(
+    userId: string,
+    page = 1,
+    limit = 20,
+    status = 'all',
+  ) {
+    const safePage = Math.max(page, 1);
+    const safeLimit = Math.min(Math.max(limit, 1), 100);
+
+    const query = this.negotiationRepo
+      .createQueryBuilder('negotiation')
+      .leftJoinAndSelect('negotiation.listing', 'listing')
+      .leftJoinAndSelect('listing.artwork', 'artwork')
+      .leftJoinAndSelect('negotiation.requester', 'requester')
+      .leftJoinAndSelect('negotiation.seller', 'seller')
+      .where(
+        'negotiation.requesterId = :userId OR negotiation.sellerId = :userId',
+        {
+          userId,
+        },
+      )
+      .orderBy('negotiation.updatedAt', 'DESC')
+      .skip((safePage - 1) * safeLimit)
+      .take(safeLimit);
+
+    if (status !== 'all') {
+      query.andWhere('negotiation.status = :status', { status });
+    }
+
+    const [rows, total] = await query.getManyAndCount();
+
+    return {
+      data: rows.map((row) => ({
+        id: row.id,
+        listingId: row.listingId,
+        status: row.status,
+        initialAmount: this.toAmount(row.initialAmount),
+        latestAmount: this.toAmount(row.latestAmount ?? row.initialAmount),
+        currency: row.currency,
+        messagingOpen: row.status === 'accepted',
+        isRequester: row.requesterId === userId,
+        requester: row.requester
+          ? {
+              id: row.requester.id,
+              name: row.requester.name,
+              avatarUrl: row.requester.avatarUrl,
+            }
+          : null,
+        seller: row.seller
+          ? {
+              id: row.seller.id,
+              name: row.seller.name,
+              avatarUrl: row.seller.avatarUrl,
+            }
+          : null,
+        listing: row.listing
+          ? {
+              id: row.listing.id,
+              price: this.toAmount(row.listing.price),
+              currency: row.listing.currency,
+              isActive: row.listing.isActive,
+              artwork: row.listing.artwork
+                ? {
+                    id: row.listing.artwork.id,
+                    title: row.listing.artwork.title,
+                    imageUrl: row.listing.artwork.imageUrl,
+                  }
+                : null,
+            }
+          : null,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      })),
+      pagination: {
+        page: safePage,
+        limit: safeLimit,
+        total,
+        totalPages: Math.ceil(total / safeLimit),
+      },
+    };
+  }
+
+  async buyListing(
+    userId: string,
+    listingId: string,
+    negotiationId?: string,
+    txHash?: string,
+  ) {
     return this.dataSource.transaction(async (manager) => {
       const listingRepo = manager.getRepository(MarketplaceListing);
       const walletRepo = manager.getRepository(MarketplaceWallet);
       const walletTxRepo = manager.getRepository(MarketplaceWalletTransaction);
+      const negotiationRepo = manager.getRepository(MarketplaceNegotiation);
       const artworkRepo = manager.getRepository(Artwork);
 
       const listing = await listingRepo.findOne({ where: { id: listingId } });
@@ -528,7 +979,53 @@ export class MarketplaceService {
           walletAddress: null,
         });
 
-      const price = this.toAmount(listing.price);
+      let price = this.toAmount(listing.price);
+      if (negotiationId?.trim().length) {
+        const negotiation = await negotiationRepo.findOne({
+          where: { id: negotiationId.trim() },
+        });
+        if (!negotiation) {
+          throw new NotFoundException('Negotiation not found');
+        }
+        if (negotiation.listingId !== listing.id) {
+          throw new BadRequestException(
+            'Negotiation does not belong to listing',
+          );
+        }
+        if (negotiation.status !== 'accepted') {
+          throw new BadRequestException(
+            'Negotiation must be accepted before buying',
+          );
+        }
+        if (negotiation.requesterId !== userId) {
+          throw new BadRequestException(
+            'Negotiated price is available only to the approved buyer',
+          );
+        }
+        if (negotiation.sellerId !== listing.sellerId) {
+          throw new BadRequestException('Negotiation seller mismatch');
+        }
+
+        price = this.toAmount(
+          negotiation.latestAmount ?? negotiation.initialAmount,
+        );
+
+        negotiation.status = 'closed';
+        negotiation.closedAt = new Date();
+        await negotiationRepo.save(negotiation);
+
+        await negotiationRepo
+          .createQueryBuilder()
+          .update(MarketplaceNegotiation)
+          .set({ status: 'closed', closedAt: new Date() })
+          .where('listing_id = :listingId', { listingId: listing.id })
+          .andWhere('status IN (:...statuses)', {
+            statuses: ['pending', 'accepted'],
+          })
+          .andWhere('id != :currentId', { currentId: negotiation.id })
+          .execute();
+      }
+
       const buyerBalance = this.toAmount(buyerWallet.availableBalance);
       const sellerBalance = this.toAmount(sellerWallet.availableBalance);
 
@@ -568,6 +1065,7 @@ export class MarketplaceService {
         reference: listing.id,
         metadata: {
           listingId: listing.id,
+          negotiationId: negotiationId?.trim() || null,
           counterpartyUserId: listing.sellerId,
           txHash: txHash?.trim() || null,
           chainVerification,
@@ -584,6 +1082,7 @@ export class MarketplaceService {
         reference: listing.id,
         metadata: {
           listingId: listing.id,
+          negotiationId: negotiationId?.trim() || null,
           counterpartyUserId: userId,
           txHash: txHash?.trim() || null,
           chainVerification,
@@ -599,6 +1098,8 @@ export class MarketplaceService {
         artworkId: listing.artworkId,
         newOwnerId: userId,
         status: listing.status,
+        negotiated: !!negotiationId,
+        finalPrice: price,
         txHash: listing.txHash,
         chainVerification,
         buyerBalance: this.toAmount(buyerWallet.availableBalance),
