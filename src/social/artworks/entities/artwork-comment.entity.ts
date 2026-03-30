@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { User } from '../../../users/user.entity';
 import { Artwork } from './artwork.entity';
+import { ModerationStatus } from '../../../ai-moderation/ai-moderation.constants';
 
 @Entity('artwork_comments')
 @Index(['artworkId'])
@@ -33,6 +34,17 @@ export class ArtworkComment {
 
   @Column('uuid', { nullable: true, name: 'parent_comment_id' })
   parentCommentId: string | null;
+
+  @Column({
+    type: 'enum',
+    enum: ModerationStatus,
+    default: ModerationStatus.APPROVED,
+    name: 'moderation_status',
+  })
+  moderationStatus: ModerationStatus;
+
+  @Column({ type: 'varchar', length: 500, nullable: true, name: 'moderation_reason' })
+  moderationReason: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

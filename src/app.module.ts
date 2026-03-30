@@ -10,6 +10,7 @@ import { UserPreferencesModule } from './user-preferences/user-preferences.modul
 import { SocialModule } from './social/social.module';
 import { SeederModule } from './seeders/seeder.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
+import { AiModerationModule } from './ai-moderation/ai-moderation.module';
 import { getDatabaseConfig } from './config/database.config';
 
 @Module({
@@ -26,6 +27,7 @@ import { getDatabaseConfig } from './config/database.config';
     SocialModule,
     SeederModule,
     SubscriptionsModule,
+    AiModerationModule,
   ],
   controllers: [AppController],
   providers: [AppService],

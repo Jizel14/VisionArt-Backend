@@ -48,6 +48,9 @@ export class User {
   @Column({ type: 'boolean', default: false, name: 'is_private_account' })
   isPrivateAccount: boolean;
 
+  @Column({ type: 'boolean', default: false, name: 'is_admin' })
+  isAdmin: boolean;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

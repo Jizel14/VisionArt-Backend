@@ -11,6 +11,7 @@ import { Artwork } from './entities/artwork.entity';
 import { User } from '../../users/user.entity';
 import { CreateCommentDto, UpdateCommentDto } from './dto/engagement.dto';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ModerationStatus } from '../../ai-moderation/ai-moderation.constants';
 import { ArtworkCommentMention } from './entities/artwork-comment-mention.entity';
 
 @Injectable()
@@ -30,7 +31,13 @@ export class CommentService {
   /**
    * Create a comment on an artwork
    */
-  async create(userId: string, artworkId: string, dto: CreateCommentDto) {
+  async create(
+    userId: string,
+    artworkId: string,
+    dto: CreateCommentDto,
+    moderationStatus?: ModerationStatus,
+    moderationReason?: string | null,
+  ) {
     const artwork = await this.artworkRepository.findOne({
       where: { id: artworkId },
     });
@@ -70,6 +77,8 @@ export class CommentService {
       artworkId,
       content,
       parentCommentId: dto.parentCommentId || null,
+      moderationStatus: moderationStatus ?? ModerationStatus.APPROVED,
+      moderationReason: moderationReason ?? null,
     });
 
     const saved = await this.commentRepository.save(comment);

@@ -12,6 +12,7 @@ import {
 import { User } from '../../../users/user.entity';
 import { ArtworkLike } from './artwork-like.entity';
 import { ArtworkComment } from './artwork-comment.entity';
+import { ModerationStatus } from '../../../ai-moderation/ai-moderation.constants';
 
 @Entity('artworks')
 @Index(['userId', 'isPublic', 'createdAt'])
@@ -67,6 +68,17 @@ export class Artwork {
 
   @Column({ type: 'json', nullable: true, name: 'context_data' })
   contextData: object | null;
+
+  @Column({
+    type: 'enum',
+    enum: ModerationStatus,
+    default: ModerationStatus.APPROVED,
+    name: 'moderation_status',
+  })
+  moderationStatus: ModerationStatus;
+
+  @Column({ type: 'varchar', length: 500, nullable: true, name: 'moderation_reason' })
+  moderationReason: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

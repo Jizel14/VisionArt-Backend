@@ -35,10 +35,10 @@ export class Subscription {
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @Column({ name: 'stripe_customer_id', nullable: true, length: 255 })
+  @Column({ type: 'varchar', name: 'stripe_customer_id', nullable: true, length: 255 })
   stripeCustomerId: string | null;
 
-  @Column({ name: 'stripe_subscription_id', nullable: true, length: 255 })
+  @Column({ type: 'varchar', name: 'stripe_subscription_id', nullable: true, length: 255 })
   stripeSubscriptionId: string | null;
 
   @Column({
