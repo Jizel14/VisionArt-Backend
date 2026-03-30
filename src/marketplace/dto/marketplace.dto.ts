@@ -85,6 +85,18 @@ export class BuyListingDto {
   txHash?: string;
 }
 
+export class UpdateListingDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 6 })
+  @Min(0.000001)
+  price?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  negotiable?: boolean;
+}
+
 export class CreateNegotiationRequestDto {
   @IsUUID()
   listingId: string;
@@ -166,4 +178,9 @@ export class ListListingsDto {
   @IsString()
   @IsIn(['active', 'sold', 'cancelled', 'all'])
   status?: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['seller', 'buyer', 'all'])
+  role?: string;
 }

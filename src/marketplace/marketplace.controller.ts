@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Patch,
   Param,
   Post,
   Query,
@@ -22,6 +23,7 @@ import {
   ReconcileTransactionDto,
   RespondNegotiationDto,
   SendNegotiationMessageDto,
+  UpdateListingDto,
   WalletAmountDto,
   WithdrawDto,
 } from './dto/marketplace.dto';
@@ -96,7 +98,8 @@ export class MarketplaceController {
   ) {
     const page = query.page || 1;
     const limit = Math.min(query.limit || 20, 100);
-    return this.marketplaceService.listMyListings(userId, page, limit);
+    const role = (query.role || 'seller') as 'seller' | 'buyer' | 'all';
+    return this.marketplaceService.listMyListings(userId, page, limit, role);
   }
 
   @Post('listings')
@@ -105,6 +108,15 @@ export class MarketplaceController {
     @Body() dto: CreateListingDto,
   ) {
     return this.marketplaceService.createListing(userId, dto);
+  }
+
+  @Patch('listings/:listingId')
+  async updateListing(
+    @CurrentUser() userId: string,
+    @Param('listingId') listingId: string,
+    @Body() dto: UpdateListingDto,
+  ) {
+    return this.marketplaceService.updateListing(userId, listingId, dto);
   }
 
   @Post('listings/:listingId/cancel')

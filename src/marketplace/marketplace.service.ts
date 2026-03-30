@@ -582,6 +582,68 @@ export class MarketplaceService {
     return { success: true };
   }
 
+  async updateListing(
+    userId: string,
+    listingId: string,
+    payload: { price?: number; negotiable?: boolean },
+  ) {
+    const listing = await this.listingRepo.findOne({
+      where: { id: listingId },
+    });
+    if (!listing) {
+      throw new NotFoundException('Listing not found');
+    }
+
+    if (listing.sellerId !== userId) {
+      throw new BadRequestException('Only seller can edit listing');
+    }
+
+    if (
+      !listing.isActive ||
+      !['listed', 'listed_onchain'].includes(listing.status)
+    ) {
+      throw new BadRequestException('Only active listed items can be edited');
+    }
+
+    const nextPrice = payload.price;
+    if (nextPrice != null) {
+      if (nextPrice <= 0) {
+        throw new BadRequestException('Price must be greater than 0');
+      }
+      listing.price = this.amountToStorage(nextPrice);
+    }
+
+    if (payload.negotiable != null) {
+      listing.negotiable = payload.negotiable;
+    }
+
+    await this.listingRepo.save(listing);
+
+    const updated = await this.listingRepo.findOne({
+      where: { id: listingId },
+    });
+    if (!updated) {
+      throw new NotFoundException('Listing not found after update');
+    }
+
+    if (
+      payload.negotiable != null &&
+      Boolean(updated.negotiable) !== Boolean(payload.negotiable)
+    ) {
+      throw new BadRequestException('Unable to persist negotiable state');
+    }
+
+    return {
+      id: updated.id,
+      price: this.toAmount(updated.price),
+      currency: updated.currency,
+      negotiable: updated.negotiable,
+      status: updated.status,
+      isActive: updated.isActive,
+      updatedAt: updated.updatedAt,
+    };
+  }
+
   async createNegotiationRequest(
     userId: string,
     payload: { listingId: string; amount: number; message?: string },
@@ -1044,6 +1106,7 @@ export class MarketplaceService {
       listing.isActive = false;
       listing.status = 'sold';
       listing.buyerId = userId;
+      listing.price = this.amountToStorage(price);
       listing.soldAt = new Date();
       if (txHash?.trim().length) {
         listing.txHash = txHash.trim();
@@ -1170,26 +1233,64 @@ export class MarketplaceService {
     };
   }
 
-  async listMyListings(userId: string, page = 1, limit = 20) {
+  async listMyListings(
+    userId: string,
+    page = 1,
+    limit = 20,
+    role: 'seller' | 'buyer' | 'all' = 'seller',
+  ) {
     const safePage = Math.max(page, 1);
     const safeLimit = Math.min(Math.max(limit, 1), 100);
 
+    const where =
+      role === 'buyer'
+        ? { buyerId: userId }
+        : role === 'all'
+          ? [{ sellerId: userId }, { buyerId: userId }]
+          : { sellerId: userId };
+
     const [rows, total] = await this.listingRepo.findAndCount({
-      where: { sellerId: userId },
+      where,
       order: { createdAt: 'DESC' },
-      relations: ['artwork'],
+      relations: ['artwork', 'seller'],
       skip: (safePage - 1) * safeLimit,
       take: safeLimit,
     });
+
+    const purchasedListingIds = rows
+      .filter((listing) => listing.buyerId === userId)
+      .map((listing) => listing.id);
+
+    const paidAmountByListingId = new Map<string, number>();
+    if (purchasedListingIds.length > 0) {
+      const purchaseTxs = await this.walletTxRepo.find({
+        where: {
+          userId,
+          type: 'purchase',
+          reference: In(purchasedListingIds),
+        },
+        order: { createdAt: 'DESC' },
+      });
+
+      for (const tx of purchaseTxs) {
+        if (!tx.reference) continue;
+        if (paidAmountByListingId.has(tx.reference)) continue;
+        paidAmountByListingId.set(tx.reference, this.toAmount(tx.amount));
+      }
+    }
 
     return {
       data: rows.map((listing) => ({
         id: listing.id,
         artworkId: listing.artworkId,
-        price: this.toAmount(listing.price),
+        sellerId: listing.sellerId,
+        buyerId: listing.buyerId,
+        price:
+          paidAmountByListingId.get(listing.id) ?? this.toAmount(listing.price),
         currency: listing.currency,
         status: listing.status,
         isActive: listing.isActive,
+        isMine: listing.sellerId === userId,
         artwork: listing.artwork
           ? {
               id: listing.artwork.id,
@@ -1197,7 +1298,15 @@ export class MarketplaceService {
               imageUrl: listing.artwork.imageUrl,
             }
           : null,
+        seller: listing.seller
+          ? {
+              id: listing.seller.id,
+              name: listing.seller.name,
+              avatarUrl: listing.seller.avatarUrl,
+            }
+          : null,
         createdAt: listing.createdAt,
+        soldAt: listing.soldAt,
       })),
       pagination: {
         page: safePage,
