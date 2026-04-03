@@ -1,160 +1,98 @@
-# VisionArt — Backend API
+<p align="center">
+  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
+</p>
 
-NestJS REST API for the VisionArt mobile application. Handles authentication, user management, artwork, reports, notifications, and collections.
+[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
+[circleci-url]: https://circleci.com/gh/nestjs/nest
 
-## Tech Stack
+  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
+    <p align="center">
+<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
+<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
+<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
+<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
+<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
+<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
+<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
+  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
+    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
+  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
+</p>
+  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
+  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
 
-- **Framework**: NestJS 11 + TypeScript
-- **Database**: MySQL 8 via TypeORM
-- **Auth**: JWT + Google OAuth2 (`google-auth-library`)
-- **API Docs**: Swagger/OpenAPI at `/api`
-- **Container**: Docker (multi-stage build)
-- **Orchestration**: Kubernetes
+## Description
 
----
+[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
-## Branches
-
-| Branch | Purpose |
-|--------|---------|
-| `main` | Stable production-ready code |
-| `dev`  | Active development — all PRs target this branch |
-
-CI auto-triggers on every push to `dev`. Deployment to `main` is **manual** via GitHub Actions.
-
----
-
-## Local Development
-
-### Prerequisites
-
-- Node.js 20+
-- MySQL 8 running on `localhost:3306`
-
-### Setup
+## Project setup
 
 ```bash
-cp .env.example .env       # fill in your local values
-npm install
-npm run start:dev          # http://localhost:3000
+$ npm install
 ```
 
-Swagger UI: `http://localhost:3000/api`
-
-### Environment variables
-
-| Variable | Description |
-|----------|-------------|
-| `PORT` | Server port (default `3000`) |
-| `JWT_SECRET` | Secret for signing JWT tokens |
-| `JWT_EXPIRES_IN` | Token expiry (default `7d`) |
-| `GOOGLE_CLIENT_ID` | Google OAuth Web Client ID |
-| `GOOGLE_ANDROID_CLIENT_ID` | Google OAuth Android Client ID (optional) |
-| `DB_HOST` | MySQL host |
-| `DB_PORT` | MySQL port (default `3306`) |
-| `DB_USERNAME` | MySQL user |
-| `DB_PASSWORD` | MySQL password |
-| `DB_DATABASE` | Database name |
-| `DB_SYNCHRONIZE` | Auto-sync schema — `true` in dev only |
-| `SMTP_*` | Email config for password reset (optional) |
-| `FRONTEND_RESET_URL` | Password reset deep-link base URL (optional) |
-
----
-
-## Docker
-
-### Production image
+## Compile and run the project
 
 ```bash
-docker build --target production -t visionart-backend .
-docker run -p 3000:3000 --env-file .env visionart-backend
+# development
+$ npm run start
+
+# watch mode
+$ npm run start:dev
+
+# production mode
+$ npm run start:prod
 ```
 
-### Docker Compose (backend + MySQL)
+## Run tests
 
 ```bash
-# Production
-docker-compose up
+# unit tests
+$ npm run test
 
-# Development (hot reload)
-docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+# e2e tests
+$ npm run test:e2e
+
+# test coverage
+$ npm run test:cov
 ```
 
----
+## Deployment
 
-## CI/CD — GitHub Actions
+When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
 
-### `ci-dev.yml` — Auto on push to `dev`
-
-1. Install deps
-2. Lint (`eslint`)
-3. Build (`nest build`)
-4. Build & push Docker image to `ghcr.io`
-
-**Image tags**: `dev`, `dev-<sha>`
-
-### `deploy-main.yml` — Manual (`workflow_dispatch`)
-
-Triggered manually from GitHub Actions UI. Choose environment: `production` or `staging`.
-
-**Image tags**: `latest`, `<environment>`, `<sha>`
-
-### Required GitHub Secrets
-
-| Secret | Used by |
-|--------|---------|
-| `JWT_SECRET` | deploy-main |
-| `GOOGLE_CLIENT_ID` | deploy-main |
-
-> **Permissions**: Set repo → Settings → Actions → General → Workflow permissions to **Read and write**.
-
----
-
-## Kubernetes
-
-Manifests are in `k8s/`. Apply in this order:
+If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
 
 ```bash
-kubectl apply -f k8s/namespace.yml
-kubectl apply -f k8s/secret.yml      # fill real values first — never commit secrets
-kubectl apply -f k8s/configmap.yml
-kubectl apply -f k8s/mysql.yml
-kubectl apply -f k8s/deployment.yml
-kubectl apply -f k8s/service.yml
+$ npm install -g @nestjs/mau
+$ mau deploy
 ```
 
-| Resource | Details |
-|----------|---------|
-| `Deployment` | 2 replicas, readiness + liveness probes |
-| `Service (ClusterIP)` | Internal port `80 → 3000` |
-| `Service (NodePort)` | External access on `:30000` |
-| `MySQL StatefulSet` | Persistent 5Gi volume |
+With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
 
-Image pulled from `ghcr.io/jizel14/visionart-backend:latest`.
+## Resources
 
----
+Check out a few resources that may come in handy when working with NestJS:
 
-## API Modules
+- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
+- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
+- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
+- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
+- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
+- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
+- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
+- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
 
-| Module | Endpoints |
-|--------|-----------|
-| Auth | `POST /auth/login`, `/auth/register`, `/auth/google`, `/auth/forgot-password`, `/auth/reset-password` |
-| Users | `GET /users/me`, `PATCH /users/profile`, `PATCH /users/preferences`, `DELETE /users/account` |
-| Artworks | `GET /artworks`, `POST /artworks`, `GET /artworks/:id`, artwork likes & saves |
-| Reports | `POST /reports`, `GET /reports` |
-| Notifications | `GET /notifications`, mark as read, notification types |
-| Collections | `GET /collections`, `POST /collections`, add/remove artworks |
+## Support
 
----
+Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
 
-## Scripts
+## Stay in touch
 
-```bash
-npm run start:dev     # dev with hot reload
-npm run build         # compile to dist/
-npm run start:prod    # run compiled output
-npm run lint          # eslint
-npm run test          # unit tests
-npm run test:e2e      # end-to-end tests
-npm run test:cov      # coverage report
-```
+- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
+- Website - [https://nestjs.com](https://nestjs.com/)
+- Twitter - [@nestframework](https://twitter.com/nestframework)
+
+## License
+
+Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
