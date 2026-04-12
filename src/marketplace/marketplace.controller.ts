@@ -45,6 +45,11 @@ export class MarketplaceController {
     return this.marketplaceService.getBlockchainProof();
   }
 
+  @Get('analytics/seller')
+  async getSellerAnalytics(@CurrentUser() userId: string) {
+    return this.marketplaceService.getSellerAnalytics(userId);
+  }
+
   @Get('wallet/me')
   async getMyWallet(@CurrentUser() userId: string) {
     return this.marketplaceService.getMyWallet(userId);

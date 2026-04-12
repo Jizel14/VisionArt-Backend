@@ -186,6 +186,96 @@ export class MarketplaceService {
     };
   }
 
+  async getSellerAnalytics(userId: string) {
+    const [listings, negotiations] = await Promise.all([
+      this.listingRepo.find({
+        where: { sellerId: userId },
+        relations: ['artwork', 'buyer'],
+        order: { createdAt: 'DESC' },
+      }),
+      this.negotiationRepo.find({
+        where: { sellerId: userId },
+        relations: ['listing', 'listing.artwork', 'requester'],
+        order: { updatedAt: 'DESC' },
+      }),
+    ]);
+
+    const totalListings = listings.length;
+    const activeListings = listings.filter(
+      (listing) => listing.isActive,
+    ).length;
+    const soldListings = listings.filter(
+      (listing) => listing.status === 'sold',
+    ).length;
+    const cancelledListings = listings.filter(
+      (listing) => listing.status === 'cancelled',
+    ).length;
+    const negotiableListings = listings.filter(
+      (listing) => listing.negotiable,
+    ).length;
+    const fixedListings = totalListings - negotiableListings;
+
+    const soldRows = listings.filter((listing) => listing.status === 'sold');
+    const soldPrices = soldRows.map((listing) => this.toAmount(listing.price));
+    const totalSoldRevenue = soldPrices.reduce((sum, value) => sum + value, 0);
+    const averageSoldPrice =
+      soldPrices.length > 0 ? totalSoldRevenue / soldPrices.length : 0;
+    const highestSoldPrice =
+      soldPrices.length > 0 ? Math.max(...soldPrices) : 0;
+
+    const totalNegotiations = negotiations.length;
+    const pendingNegotiations = negotiations.filter(
+      (item) => item.status === 'pending',
+    ).length;
+    const acceptedNegotiations = negotiations.filter(
+      (item) => item.status === 'accepted',
+    ).length;
+    const deniedNegotiations = negotiations.filter(
+      (item) => item.status === 'denied',
+    ).length;
+    const closedNegotiations = negotiations.filter(
+      (item) => item.status === 'closed',
+    ).length;
+    const negotiationDecisionCount = acceptedNegotiations + deniedNegotiations;
+    const negotiationAcceptanceRate =
+      negotiationDecisionCount > 0
+        ? acceptedNegotiations / negotiationDecisionCount
+        : 0;
+
+    const recentSales = soldRows.slice(0, 5).map((listing) => ({
+      listingId: listing.id,
+      artworkId: listing.artworkId,
+      title: listing.artwork?.title ?? 'Untitled artwork',
+      imageUrl: listing.artwork?.imageUrl ?? null,
+      buyerName: listing.buyer?.name ?? null,
+      price: this.toAmount(listing.price),
+      currency: listing.currency,
+      soldAt: listing.soldAt,
+      negotiable: listing.negotiable,
+    }));
+
+    return {
+      summary: {
+        totalListings,
+        activeListings,
+        soldListings,
+        cancelledListings,
+        negotiableListings,
+        fixedListings,
+        totalNegotiations,
+        pendingNegotiations,
+        acceptedNegotiations,
+        deniedNegotiations,
+        closedNegotiations,
+        totalSoldRevenue,
+        averageSoldPrice,
+        highestSoldPrice,
+        negotiationAcceptanceRate,
+      },
+      recentSales,
+    };
+  }
+
   async connectWallet(userId: string, walletAddress: string) {
     const normalized = walletAddress.trim().toLowerCase();
     if (!/^0x[a-f0-9]{40}$/.test(normalized)) {
