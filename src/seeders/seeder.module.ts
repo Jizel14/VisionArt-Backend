@@ -9,7 +9,9 @@ import { ArtworkComment } from '../social/artworks/entities/artwork-comment.enti
 import { MarketplaceWallet } from '../marketplace/entities/marketplace-wallet.entity';
 import { MarketplaceWalletTransaction } from '../marketplace/entities/marketplace-wallet-transaction.entity';
 import { MarketplaceListing } from '../marketplace/entities/marketplace-listing.entity';
+import { Story } from '../social/stories/entities/story.entity';
 import { PlaygroundSeeder } from './playground.seeder';
+import { StoriesSeeder } from './stories.seeder';
 
 @Module({
   imports: [
@@ -20,12 +22,13 @@ import { PlaygroundSeeder } from './playground.seeder';
       UserFollower,
       ArtworkLike,
       ArtworkComment,
+      Story,
       MarketplaceWallet,
       MarketplaceWalletTransaction,
       MarketplaceListing,
     ]),
   ],
-  providers: [PlaygroundSeeder],
-  exports: [PlaygroundSeeder],
+  providers: [PlaygroundSeeder, StoriesSeeder],
+  exports: [PlaygroundSeeder, StoriesSeeder],
 })
 export class SeederModule {}

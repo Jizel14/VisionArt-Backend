@@ -9,6 +9,7 @@ import { ArtworkCommentMention } from 'src/social/artworks/entities/artwork-comm
 import { ArtworkReport } from 'src/social/moderation/entities/artwork-report.entity';
 import { ArtworkSave } from 'src/social/collections/entities/artwork-save.entity';
 import { UserNotification } from 'src/social/notifications/entities/user-notification.entity';
+import { Story } from 'src/social/stories/entities/story.entity';
 import { MarketplaceWallet } from 'src/marketplace/entities/marketplace-wallet.entity';
 import { MarketplaceWalletTransaction } from 'src/marketplace/entities/marketplace-wallet-transaction.entity';
 import { MarketplaceListing } from 'src/marketplace/entities/marketplace-listing.entity';
@@ -33,6 +34,7 @@ export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
     ArtworkReport,
     ArtworkSave,
     UserNotification,
+    Story,
     MarketplaceWallet,
     MarketplaceWalletTransaction,
     MarketplaceListing,
