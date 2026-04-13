@@ -10,6 +10,7 @@ import { SocialModule } from './social/social.module';
 import { SeederModule } from './seeders/seeder.module';
 import { MarketplaceModule } from './marketplace/marketplace.module';
 import { getDatabaseConfig } from './config/database.config';
+import { StorageModule } from './storage/storage.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { getDatabaseConfig } from './config/database.config';
     UserPreferencesModule,
     SocialModule,
     MarketplaceModule,
+    StorageModule,
     SeederModule,
   ],
   controllers: [AppController],
