@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Patch,
+  Post,
+  Body,
   Param,
   Query,
   UseGuards,
@@ -16,6 +18,7 @@ import {
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { NotificationsService } from './notifications.service';
+import { AdminGuard } from '../../ai-moderation/guards/admin.guard';
 
 @ApiTags('Social - Notifications')
 @Controller('social/notifications')
@@ -67,5 +70,13 @@ export class NotificationsController {
   @ApiOperation({ summary: 'Mark all notifications as read' })
   async markAllAsRead(@CurrentUser() userId: string) {
     return this.notificationsService.markAllAsRead(userId);
+  }
+
+  @Post('broadcast')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Admin: broadcast system notification to all users' })
+  async broadcast(@Body() body: { title: string; message: string }) {
+    return this.notificationsService.broadcastToAll(body.title, body.message);
   }
 }

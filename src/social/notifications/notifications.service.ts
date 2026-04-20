@@ -191,4 +191,22 @@ export class NotificationsService {
 
     return { success: true };
   }
+
+  async broadcastToAll(title: string, message: string): Promise<{ sent: number }> {
+    const users = await this.usersRepository.find({ select: ['id'] });
+    const notifications = users.map((u) =>
+      this.notificationsRepository.create({
+        userId: u.id,
+        type: NotificationType.SYSTEM,
+        title,
+        message,
+        actorUserId: null,
+        artworkId: null,
+        isRead: false,
+        readAt: null,
+      })
+    );
+    await this.notificationsRepository.save(notifications);
+    return { sent: notifications.length };
+  }
 }

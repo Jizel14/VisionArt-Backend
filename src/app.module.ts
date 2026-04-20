@@ -12,6 +12,7 @@ import { SeederModule } from './seeders/seeder.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { AiModerationModule } from './ai-moderation/ai-moderation.module';
 import { getDatabaseConfig } from './config/database.config';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { getDatabaseConfig } from './config/database.config';
     SeederModule,
     SubscriptionsModule,
     AiModerationModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
