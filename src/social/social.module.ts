@@ -4,6 +4,7 @@ import { ArtworksModule } from './artworks/artworks.module';
 import { ModerationModule } from './moderation/moderation.module';
 import { CollectionsModule } from './collections/collections.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { StoriesModule } from './stories/stories.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     ModerationModule,
     CollectionsModule,
     NotificationsModule,
+    StoriesModule,
   ],
   exports: [
     FollowModule,
@@ -19,6 +21,7 @@ import { NotificationsModule } from './notifications/notifications.module';
     ModerationModule,
     CollectionsModule,
     NotificationsModule,
+    StoriesModule,
   ],
 })
 export class SocialModule {}

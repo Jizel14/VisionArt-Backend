@@ -9,6 +9,10 @@ import { UserFollower } from '../social/follow/entities/user-follower.entity';
 import { ArtworkLike } from '../social/artworks/entities/artwork-like.entity';
 import { ArtworkComment } from '../social/artworks/entities/artwork-comment.entity';
 import { UserPreferences } from 'src/user-preferences/entities/user-preferences.entity';
+import { MarketplaceWallet } from '../marketplace/entities/marketplace-wallet.entity';
+import { MarketplaceWalletTransaction } from '../marketplace/entities/marketplace-wallet-transaction.entity';
+import { MarketplaceListing } from '../marketplace/entities/marketplace-listing.entity';
+import { Story } from '../social/stories/entities/story.entity';
 
 @Injectable()
 export class PlaygroundSeeder {
@@ -25,6 +29,14 @@ export class PlaygroundSeeder {
     private likeRepository: Repository<ArtworkLike>,
     @InjectRepository(ArtworkComment)
     private commentRepository: Repository<ArtworkComment>,
+    @InjectRepository(MarketplaceWallet)
+    private walletRepository: Repository<MarketplaceWallet>,
+    @InjectRepository(MarketplaceWalletTransaction)
+    private walletTxRepository: Repository<MarketplaceWalletTransaction>,
+    @InjectRepository(MarketplaceListing)
+    private listingRepository: Repository<MarketplaceListing>,
+    @InjectRepository(Story)
+    private storyRepository: Repository<Story>,
   ) {}
 
   async seed(): Promise<void> {
@@ -45,6 +57,10 @@ export class PlaygroundSeeder {
     await this.createFollowRelationships(users);
     console.log(`✅ Created follow relationships`);
 
+    // Create stories
+    const stories = await this.createStories(users);
+    console.log(`✅ Created ${stories.length} stories`);
+
     // Create artworks
     const artworks = await this.createArtworks(users);
     console.log(`✅ Created ${artworks.length} artworks`);
@@ -57,6 +73,10 @@ export class PlaygroundSeeder {
     await this.createComments(users, artworks);
     console.log(`✅ Created comments on artworks`);
 
+    // Create marketplace demo data
+    await this.createMarketplaceData(users, artworks);
+    console.log(`✅ Created marketplace wallets and listings`);
+
     console.log('🎉 Playground seeder completed successfully!');
   }
 
@@ -64,6 +84,12 @@ export class PlaygroundSeeder {
     console.log('🗑️ Clearing existing data...');
 
     // Clear in dependent order (reverse of creation)
+    await this.walletTxRepository.query(
+      'DELETE FROM marketplace_wallet_transactions',
+    );
+    await this.listingRepository.query('DELETE FROM marketplace_listings');
+    await this.walletRepository.query('DELETE FROM marketplace_wallets');
+    await this.storyRepository.query('DELETE FROM stories');
     await this.commentRepository.query('DELETE FROM artwork_comments');
     await this.likeRepository.query('DELETE FROM artwork_likes');
     await this.followerRepository.query('DELETE FROM user_followers');
@@ -108,7 +134,7 @@ export class PlaygroundSeeder {
         isPrivateAccount: false,
       },
       {
-        email: 'carlos.designs@test.com',
+        email: 'c',
         name: 'Carlos Designs',
         password: 'TestPassword123!',
         bio: 'UI/UX designer and digital artist',
@@ -255,6 +281,33 @@ export class PlaygroundSeeder {
 
       await this.preferencesRepository.save(preferences);
     }
+  }
+
+  private async createStories(users: User[]): Promise<Story[]> {
+    const now = Date.now();
+    const expiresInMs = 24 * 60 * 60 * 1000;
+
+    const stories: Story[] = [];
+
+    for (const user of users) {
+      const storiesCount = 1 + Math.floor(Math.random() * 3);
+
+      for (let i = 0; i < storiesCount; i++) {
+        const seed = `${user.id}-${i + 1}`;
+        const mediaUrl = `https://picsum.photos/seed/visionart-${seed}/1080/1920`;
+        const expiresAt = new Date(now + expiresInMs);
+
+        const story = this.storyRepository.create({
+          userId: user.id,
+          mediaUrl,
+          expiresAt,
+        });
+
+        stories.push(story);
+      }
+    }
+
+    return this.storyRepository.save(stories);
   }
 
   private async createFollowRelationships(users: User[]): Promise<void> {
@@ -550,6 +603,84 @@ export class PlaygroundSeeder {
           1,
         );
       }
+    }
+  }
+
+  private async createMarketplaceData(
+    users: User[],
+    artworks: Artwork[],
+  ): Promise<void> {
+    const walletsByUserId = new Map<string, MarketplaceWallet>();
+
+    for (let i = 0; i < users.length; i++) {
+      const user = users[i];
+      const openingBalance = i === 0 ? 600 : 120 + i * 17;
+
+      const wallet = this.walletRepository.create({
+        userId: user.id,
+        availableBalance: openingBalance.toFixed(6),
+        currency: 'USDC',
+        walletAddress: `0x${(i + 1).toString(16).padStart(40, '0')}`,
+      });
+
+      const savedWallet = await this.walletRepository.save(wallet);
+      walletsByUserId.set(user.id, savedWallet);
+
+      const seedTopup = this.walletTxRepository.create({
+        walletId: savedWallet.id,
+        userId: user.id,
+        type: 'topup',
+        status: 'completed',
+        amount: openingBalance.toFixed(6),
+        currency: 'USDC',
+        reference: 'seed-opening-balance',
+        metadata: {
+          source: 'playground-seed',
+        },
+      });
+      await this.walletTxRepository.save(seedTopup);
+    }
+
+    const listingsToCreate = Math.min(10, artworks.length);
+    for (let i = 0; i < listingsToCreate; i++) {
+      const artwork = artworks[i];
+      const price = 15 + i * 4;
+      const negotiable = i % 3 === 0;
+
+      const listing = this.listingRepository.create({
+        artworkId: artwork.id,
+        sellerId: artwork.userId,
+        buyerId: null,
+        price: price.toFixed(6),
+        currency: 'USDC',
+        paymentToken: null,
+        negotiable,
+        isActive: true,
+        status: 'listed',
+        txHash: null,
+        soldAt: null,
+      });
+
+      await this.listingRepository.save(listing);
+    }
+
+    // Add one cancelled listing for status demo in tutor presentation.
+    if (artworks.length > 10) {
+      const cancelledArtwork = artworks[10];
+      const cancelledListing = this.listingRepository.create({
+        artworkId: cancelledArtwork.id,
+        sellerId: cancelledArtwork.userId,
+        buyerId: null,
+        price: '29.000000',
+        currency: 'USDC',
+        paymentToken: null,
+        negotiable: false,
+        isActive: false,
+        status: 'cancelled',
+        txHash: null,
+        soldAt: null,
+      });
+      await this.listingRepository.save(cancelledListing);
     }
   }
 }

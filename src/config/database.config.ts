@@ -11,6 +11,12 @@ import { ArtworkSave } from 'src/social/collections/entities/artwork-save.entity
 import { UserNotification } from 'src/social/notifications/entities/user-notification.entity';
 import { Subscription } from 'src/subscriptions/entities/subscription.entity';
 import { Report } from 'src/reports/report.entity';
+import { Story } from 'src/social/stories/entities/story.entity';
+import { MarketplaceWallet } from 'src/marketplace/entities/marketplace-wallet.entity';
+import { MarketplaceWalletTransaction } from 'src/marketplace/entities/marketplace-wallet-transaction.entity';
+import { MarketplaceListing } from 'src/marketplace/entities/marketplace-listing.entity';
+import { MarketplaceNegotiation } from 'src/marketplace/entities/marketplace-negotiation.entity';
+import { MarketplaceNegotiationMessage } from 'src/marketplace/entities/marketplace-negotiation-message.entity';
 
 export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
   type: 'mysql',
@@ -32,6 +38,12 @@ export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
     UserNotification,
     Subscription,
     Report,
+    Story,
+    MarketplaceWallet,
+    MarketplaceWalletTransaction,
+    MarketplaceListing,
+    MarketplaceNegotiation,
+    MarketplaceNegotiationMessage,
   ],
   synchronize: process.env.DB_SYNCHRONIZE === 'true',
   logging: process.env.DB_LOGGING === 'true',

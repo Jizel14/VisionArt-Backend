@@ -11,8 +11,10 @@ import { SocialModule } from './social/social.module';
 import { SeederModule } from './seeders/seeder.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { AiModerationModule } from './ai-moderation/ai-moderation.module';
-import { getDatabaseConfig } from './config/database.config';
 import { ReportsModule } from './reports/reports.module';
+import { MarketplaceModule } from './marketplace/marketplace.module';
+import { StorageModule } from './storage/storage.module';
+import { getDatabaseConfig } from './config/database.config';
 
 @Module({
   imports: [
@@ -26,6 +28,8 @@ import { ReportsModule } from './reports/reports.module';
     UsersModule,
     UserPreferencesModule,
     SocialModule,
+    MarketplaceModule,
+    StorageModule,
     SeederModule,
     SubscriptionsModule,
     AiModerationModule,
