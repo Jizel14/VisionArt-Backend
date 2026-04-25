@@ -35,6 +35,29 @@ const ERC20_ABI = [
   },
 ];
 
+const NFT_ABI = [
+  {
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'tokenUri', type: 'string' },
+    ],
+    name: 'mintTo',
+    outputs: [{ name: 'tokenId', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, name: 'to', type: 'address' },
+      { indexed: true, name: 'tokenId', type: 'uint256' },
+      { indexed: false, name: 'tokenURI', type: 'string' },
+    ],
+    name: 'Minted',
+    type: 'event',
+  },
+];
+
 @Injectable()
 export class MarketplaceService {
   constructor(
@@ -112,9 +135,21 @@ export class MarketplaceService {
     return configured?.length ? configured.toLowerCase() : null;
   }
 
+  private get nftContractAddress(): string | null {
+    const configured = this.configService
+      .get<string>('WEB3_NFT_CONTRACT_ADDRESS')
+      ?.trim();
+    return configured?.length ? configured.toLowerCase() : null;
+  }
+
   private getErc20Contract(contractAddress: string): ethers.Contract {
     const signer = this.treasurySigner;
     return new ethers.Contract(contractAddress, ERC20_ABI, signer);
+  }
+
+  private getNftContract(contractAddress: string): ethers.Contract {
+    const signer = this.treasurySigner;
+    return new ethers.Contract(contractAddress, NFT_ABI, signer);
   }
 
   private async sendUsdcTransfer(
@@ -274,6 +309,200 @@ export class MarketplaceService {
       },
       recentSales,
     };
+  }
+
+  async mintArtworkNft(
+    userId: string,
+    payload: { artworkId: string; recipientAddress?: string },
+  ) {
+    const nftContractAddress = this.nftContractAddress;
+    if (!nftContractAddress) {
+      throw new BadRequestException(
+        'WEB3_NFT_CONTRACT_ADDRESS is not configured',
+      );
+    }
+
+    const artwork = await this.artworkRepo.findOne({
+      where: { id: payload.artworkId },
+      relations: ['user', 'remixedFrom', 'remixedFrom.user'],
+    });
+
+    if (!artwork) {
+      throw new NotFoundException('Artwork not found');
+    }
+
+    if (artwork.userId !== userId) {
+      throw new BadRequestException('Only artwork owner can mint it');
+    }
+
+    if (!artwork.isPublic) {
+      throw new BadRequestException('Artwork must be public before minting');
+    }
+
+    const existingMetadata = this.toRecord(artwork.metadata);
+    const existingNft = this.toRecord(existingMetadata.nft);
+    if (Object.keys(existingNft).length > 0) {
+      throw new BadRequestException('Artwork is already minted as an NFT');
+    }
+
+    const wallet = await this.getOrCreateWallet(userId);
+    const recipientAddress =
+      payload.recipientAddress?.trim() || wallet.walletAddress?.trim() || '';
+
+    if (!recipientAddress) {
+      throw new BadRequestException(
+        'Connect a wallet or provide a recipient address to mint',
+      );
+    }
+
+    if (!this.isValidAddress(recipientAddress)) {
+      throw new BadRequestException('Invalid recipient address');
+    }
+
+    const nftContract = this.getNftContract(nftContractAddress);
+    const mintedAt = new Date().toISOString();
+
+    // Create metadata stored off-chain (in DB) and referenced on-chain via compact URI
+    const metadata = {
+      name: artwork.title?.trim() || 'VisionArt artwork',
+      description:
+        artwork.description?.trim() || 'A VisionArt artwork minted on-chain.',
+      image: artwork.imageUrl,
+      external_url: `https://visionart.app/artworks/${artwork.id}`,
+      attributes: [
+        { trait_type: 'Artist', value: artwork.user?.name ?? 'Unknown artist' },
+        { trait_type: 'Artwork ID', value: artwork.id },
+        {
+          trait_type: 'Visibility',
+          value: artwork.isPublic ? 'Public' : 'Private',
+        },
+      ],
+    };
+
+    // Compact on-chain URI to minimize gas — full metadata served via API
+    const baseUrl =
+      this.configService.get<string>('API_BASE_URL') || 'http://localhost:3000';
+    const tokenUri = `${baseUrl}/marketplace/nfts/${artwork.id}/metadata`;
+
+    const tx = await nftContract.mintTo(recipientAddress, tokenUri);
+    const receipt = await tx.wait();
+
+    if (!receipt || receipt.status !== 1) {
+      throw new BadRequestException('NFT mint transaction failed on-chain');
+    }
+
+    const parsedMintEvent = receipt.logs
+      .map((log: ethers.Log) => {
+        try {
+          return nftContract.interface.parseLog(log);
+        } catch {
+          return null;
+        }
+      })
+      .find((event) => event?.name === 'Minted');
+
+    const tokenId = parsedMintEvent
+      ? parsedMintEvent.args.tokenId.toString()
+      : null;
+
+    artwork.metadata = {
+      ...existingMetadata,
+      nft: {
+        contractAddress: nftContractAddress,
+        recipientAddress,
+        tokenId,
+        tokenURI: tokenUri,
+        transactionHash: tx.hash,
+        mintedAt,
+        metadata: metadata,
+      },
+    };
+
+    const savedArtwork = await this.artworkRepo.save(artwork);
+    const refreshedArtwork = await this.artworkRepo.findOne({
+      where: { id: savedArtwork.id },
+      relations: ['user', 'remixedFrom', 'remixedFrom.user'],
+    });
+
+    if (!refreshedArtwork) {
+      throw new NotFoundException('Artwork not found after mint');
+    }
+
+    const artworkResponse = {
+      id: refreshedArtwork.id,
+      user: {
+        id: refreshedArtwork.user?.id ?? 'unknown',
+        name: refreshedArtwork.user?.name ?? 'Unknown User',
+        email: refreshedArtwork.user?.email ?? '',
+        avatarUrl: refreshedArtwork.user?.avatarUrl ?? null,
+        bio: refreshedArtwork.user?.bio ?? null,
+        followersCount: refreshedArtwork.user?.followersCount ?? 0,
+        followingCount: refreshedArtwork.user?.followingCount ?? 0,
+        publicGenerationsCount:
+          refreshedArtwork.user?.publicGenerationsCount ?? 0,
+        isVerified: refreshedArtwork.user?.isVerified ?? false,
+        isPrivateAccount: refreshedArtwork.user?.isPrivateAccount ?? false,
+        createdAt: refreshedArtwork.user?.createdAt ?? new Date(),
+        updatedAt:
+          refreshedArtwork.user?.updatedAt ??
+          refreshedArtwork.user?.createdAt ??
+          new Date(),
+      },
+      title: refreshedArtwork.title,
+      description: refreshedArtwork.description,
+      imageUrl: refreshedArtwork.imageUrl || '',
+      thumbnailUrl: refreshedArtwork.thumbnailUrl,
+      metadata: refreshedArtwork.metadata,
+      likesCount: refreshedArtwork.likesCount || 0,
+      commentsCount: refreshedArtwork.commentsCount || 0,
+      remixCount: refreshedArtwork.remixCount || 0,
+      isLikedByMe: false,
+      isSavedByMe: false,
+      isFollowedByMe: false,
+      isPublic: refreshedArtwork.isPublic,
+      isNSFW: refreshedArtwork.isNSFW,
+      remixedFrom: refreshedArtwork.remixedFrom
+        ? {
+            id: refreshedArtwork.remixedFrom.id,
+            user: {
+              name: refreshedArtwork.remixedFrom.user?.name || 'Unknown',
+            },
+          }
+        : null,
+      createdAt: refreshedArtwork.createdAt,
+    };
+
+    return {
+      success: true,
+      artwork: artworkResponse,
+      nft: {
+        contractAddress: nftContractAddress,
+        recipientAddress,
+        tokenId,
+        tokenURI: tokenUri,
+        transactionHash: tx.hash,
+        mintedAt,
+      },
+    };
+  }
+
+  async getNftMetadata(artworkId: string) {
+    const artwork = await this.artworkRepo.findOne({
+      where: { id: artworkId },
+      relations: ['user'],
+    });
+
+    if (!artwork) {
+      throw new NotFoundException('Artwork not found');
+    }
+
+    const nftMetadata = this.toRecord(this.toRecord(artwork.metadata).nft);
+    if (!nftMetadata || !nftMetadata.metadata) {
+      throw new NotFoundException('NFT metadata not found');
+    }
+
+    // Return the metadata object so MetaMask can parse it
+    return nftMetadata.metadata;
   }
 
   async connectWallet(userId: string, walletAddress: string) {
@@ -1047,6 +1276,7 @@ export class MarketplaceService {
                     id: row.listing.artwork.id,
                     title: row.listing.artwork.title,
                     imageUrl: row.listing.artwork.imageUrl,
+                    metadata: row.listing.artwork.metadata,
                   }
                 : null,
             }
@@ -1204,8 +1434,29 @@ export class MarketplaceService {
 
       await listingRepo.save(listing);
 
-      // Mock marketplace mode: transfer artwork ownership in DB after payment.
+      // Transfer artwork ownership in DB after payment.
       artwork.userId = userId;
+
+      // If the artwork has NFT metadata, update the recipientAddress to the buyer
+      const existingMetadata = this.toRecord(artwork.metadata);
+      const existingNft = this.toRecord(existingMetadata.nft);
+      if (Object.keys(existingNft).length > 0) {
+        const buyerWalletForNft = await walletRepo.findOne({
+          where: { userId },
+        });
+        artwork.metadata = {
+          ...existingMetadata,
+          nft: {
+            ...existingNft,
+            recipientAddress:
+              buyerWalletForNft?.walletAddress?.trim() ||
+              existingNft.recipientAddress,
+            soldTo: userId,
+            soldAt: new Date().toISOString(),
+          },
+        };
+      }
+
       await artworkRepo.save(artwork);
 
       const buyerTx = walletTxRepo.create({
@@ -1302,6 +1553,7 @@ export class MarketplaceService {
               description: listing.artwork.description,
               likesCount: listing.artwork.likesCount,
               commentsCount: listing.artwork.commentsCount,
+              metadata: listing.artwork.metadata,
             }
           : null,
         seller: listing.seller
@@ -1386,6 +1638,7 @@ export class MarketplaceService {
               id: listing.artwork.id,
               title: listing.artwork.title,
               imageUrl: listing.artwork.imageUrl,
+              metadata: listing.artwork.metadata,
             }
           : null,
         seller: listing.seller
@@ -1462,6 +1715,14 @@ export class MarketplaceService {
     return fractionStr.length > 0
       ? `${whole.toString()}.${fractionStr}`
       : whole.toString();
+  }
+
+  private toRecord(value: unknown): Record<string, unknown> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return {};
+    }
+
+    return value as Record<string, unknown>;
   }
 
   getConfig() {

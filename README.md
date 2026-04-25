@@ -32,6 +32,7 @@ This repo now supports a no-real-money marketplace demo path:
 - marketplace listing/buy/cancel flow in backend + Flutter,
 - mock wallet balances and transactions for user demo accounts,
 - blockchain proof endpoint that reads chain state from RPC.
+- on-chain NFT minting from public artworks via the treasury signer.
 
 ### 1) Seed demo data
 
@@ -84,6 +85,16 @@ Flow:
 
 - Topup: user sends POL from connected wallet to treasury wallet, then submits tx hash in topup dialog. Backend verifies sender, receiver and amount before crediting balance.
 - Withdraw: user enters destination wallet; backend sends POL from treasury on-chain and stores tx hash in wallet transaction metadata.
+
+### 6) On-chain NFT minting
+
+To mint artworks as NFTs from the app, the backend needs:
+
+- `WEB3_NFT_CONTRACT_ADDRESS`
+- `WEB3_TREASURY_PRIVATE_KEY`
+- `WEB3_TREASURY_WALLET_ADDRESS` if you want an explicit wallet address in logs and config
+
+The mint endpoint stores the resulting token metadata back onto the artwork record so the app can render token ID, contract, and transaction hash after minting.
 
 ## Project setup
 
