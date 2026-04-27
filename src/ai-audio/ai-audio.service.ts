@@ -185,7 +185,7 @@ export class AiAudioService {
     fs.writeFileSync(outputPath, audioBuffer);
 
     this.logger.log(`Track saved as ${fileName}`);
-    return `/audio/${fileName}`;
+    return `/audio/file/${fileName}`;
   }
 
   private async callBeatovenGen(prompt: string, genre: string, mood: string): Promise<string | null> {
@@ -264,7 +264,7 @@ export class AiAudioService {
     fs.writeFileSync(outputPath, audioBuffer);
 
     this.logger.log(`Track saved as ${fileName}`);
-    return `/audio/${fileName}`;
+    return `/audio/file/${fileName}`;
   }
 
   async generateMusicForImage(analysisKeywords: string): Promise<string | null> {
