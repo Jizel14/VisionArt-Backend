@@ -14,6 +14,7 @@ import { AiModerationModule } from './ai-moderation/ai-moderation.module';
 import { ReportsModule } from './reports/reports.module';
 import { MarketplaceModule } from './marketplace/marketplace.module';
 import { StorageModule } from './storage/storage.module';
+import { AiAudioModule } from './ai-audio/ai-audio.module';
 import { getDatabaseConfig } from './config/database.config';
 
 @Module({
@@ -34,6 +35,7 @@ import { getDatabaseConfig } from './config/database.config';
     SubscriptionsModule,
     AiModerationModule,
     ReportsModule,
+    AiAudioModule,
   ],
   controllers: [AppController],
   providers: [AppService],

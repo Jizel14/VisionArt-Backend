@@ -5,6 +5,7 @@ import { ModerationModule } from './moderation/moderation.module';
 import { CollectionsModule } from './collections/collections.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { StoriesModule } from './stories/stories.module';
+import { ImageGenerationModule } from './image-generation.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { StoriesModule } from './stories/stories.module';
     CollectionsModule,
     NotificationsModule,
     StoriesModule,
+    ImageGenerationModule,
   ],
   exports: [
     FollowModule,
@@ -22,6 +24,7 @@ import { StoriesModule } from './stories/stories.module';
     CollectionsModule,
     NotificationsModule,
     StoriesModule,
+    ImageGenerationModule,
   ],
 })
 export class SocialModule {}
