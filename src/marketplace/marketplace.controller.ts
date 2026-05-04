@@ -20,6 +20,7 @@ import {
   CreateListingDto,
   ListListingsDto,
   ListNegotiationsDto,
+  MintArtworkDto,
   ReconcileTransactionDto,
   RespondNegotiationDto,
   SendNegotiationMessageDto,
@@ -35,6 +36,12 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 export class MarketplaceController {
   constructor(private readonly marketplaceService: MarketplaceService) {}
 
+  // Public endpoint for NFT metadata (guard allows unauthenticated access to this path)
+  @Get('nfts/metadata/:artworkId')
+  getNftMetadata(@Param('artworkId') artworkId: string) {
+    return this.marketplaceService.getNftMetadata(artworkId);
+  }
+
   @Get('config')
   getConfig() {
     return this.marketplaceService.getConfig();
@@ -43,6 +50,11 @@ export class MarketplaceController {
   @Get('blockchain/proof')
   getBlockchainProof() {
     return this.marketplaceService.getBlockchainProof();
+  }
+
+  @Post('nfts/mint')
+  mintArtwork(@CurrentUser() userId: string, @Body() dto: MintArtworkDto) {
+    return this.marketplaceService.mintArtworkNft(userId, dto);
   }
 
   @Get('analytics/seller')

@@ -537,6 +537,7 @@ export class ArtworkService {
       isFollowedByMe,
       isPublic: artwork.isPublic,
       isNSFW: artwork.isNSFW,
+      metadata: artwork.metadata,
       remixedFrom: artwork.remixedFrom
         ? {
             id: artwork.remixedFrom.id,

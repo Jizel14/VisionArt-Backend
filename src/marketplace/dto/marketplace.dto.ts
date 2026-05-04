@@ -74,6 +74,16 @@ export class CreateListingDto {
   txHash?: string;
 }
 
+export class MintArtworkDto {
+  @IsUUID()
+  artworkId: string;
+
+  @IsOptional()
+  @IsString()
+  @IsEthereumAddress()
+  recipientAddress?: string;
+}
+
 export class BuyListingDto {
   @IsOptional()
   @IsUUID()

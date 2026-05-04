@@ -17,6 +17,10 @@ import { MarketplaceWalletTransaction } from 'src/marketplace/entities/marketpla
 import { MarketplaceListing } from 'src/marketplace/entities/marketplace-listing.entity';
 import { MarketplaceNegotiation } from 'src/marketplace/entities/marketplace-negotiation.entity';
 import { MarketplaceNegotiationMessage } from 'src/marketplace/entities/marketplace-negotiation-message.entity';
+import { Conversation } from 'src/chat/entities/conversation.entity';
+import { ConversationParticipant } from 'src/chat/entities/conversation-participant.entity';
+import { Message } from 'src/chat/entities/message.entity';
+import { MessageReaction } from 'src/chat/entities/message-reaction.entity';
 import { LoyaltyPoints } from 'src/loyalty/entities/loyalty-points.entity';
 import { LoyaltyEvent } from 'src/loyalty/entities/loyalty-event.entity';
 import { PromoCode } from 'src/promo/entities/promo-code.entity';
@@ -50,6 +54,10 @@ export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
     MarketplaceListing,
     MarketplaceNegotiation,
     MarketplaceNegotiationMessage,
+    Conversation,
+    ConversationParticipant,
+    Message,
+    MessageReaction,
     LoyaltyPoints,
     LoyaltyEvent,
     PromoCode,
