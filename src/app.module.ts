@@ -15,6 +15,10 @@ import { ReportsModule } from './reports/reports.module';
 import { MarketplaceModule } from './marketplace/marketplace.module';
 import { StorageModule } from './storage/storage.module';
 import { AiAudioModule } from './ai-audio/ai-audio.module';
+import { LoyaltyModule } from './loyalty/loyalty.module';
+import { PromoModule } from './promo/promo.module';
+import { RetentionModule } from './retention/retention.module';
+import { AnnouncementsModule } from './announcements/announcements.module';
 import { getDatabaseConfig } from './config/database.config';
 
 @Module({
@@ -36,6 +40,10 @@ import { getDatabaseConfig } from './config/database.config';
     AiModerationModule,
     ReportsModule,
     AiAudioModule,
+    LoyaltyModule,
+    PromoModule,
+    RetentionModule,
+    AnnouncementsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

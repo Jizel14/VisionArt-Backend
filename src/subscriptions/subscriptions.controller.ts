@@ -3,6 +3,7 @@ import {
   Get,
   HttpCode,
   Post,
+  Body,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -34,10 +35,26 @@ export class SubscriptionsController {
   @Post('create-checkout-session')
   @HttpCode(200)
   @ApiOkResponse({ description: 'Stripe Checkout session URL' })
-  async createCheckoutSession(@Req() req: any) {
+  async createCheckoutSession(
+    @Req() req: any,
+    @Body() body: { promoCode?: string } = {},
+  ) {
     return this.subscriptionsService.createCheckoutSession(
       req.user.userId,
       req.user.email,
+      body.promoCode,
+    );
+  }
+
+  @Post('validate-promo')
+  @HttpCode(200)
+  async validatePromo(
+    @Req() req: any,
+    @Body() body: { promoCode?: string } = {},
+  ) {
+    return this.subscriptionsService.validatePromoCode(
+      req.user.userId,
+      body.promoCode,
     );
   }
 

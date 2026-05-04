@@ -3,14 +3,7 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { ReportsService } from './reports.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-
-class CreateReportDto {
-  type: string;
-  subject: string;
-  description: string;
-  targetId?: string;
-  imageUrl?: string;
-}
+import { CreateReportDto } from './dto/create-report.dto';
 
 @ApiTags('Reports')
 @Controller('reports')

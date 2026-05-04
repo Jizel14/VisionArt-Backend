@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
 import Stripe from 'stripe';
@@ -14,6 +14,8 @@ import {
   SubscriptionPlan,
   SubscriptionStatus,
 } from './entities/subscription.entity';
+import { LoyaltyService } from '../loyalty/loyalty.service';
+import { PromoService } from '../promo/promo.service';
 
 const FREE_QUOTA = 10;
 
@@ -26,6 +28,9 @@ export class SubscriptionsService {
     @InjectRepository(Subscription)
     private readonly subscriptionRepo: Repository<Subscription>,
     private readonly config: ConfigService,
+    private readonly loyalty: LoyaltyService,
+    private readonly promo: PromoService,
+    private readonly dataSource: DataSource,
   ) {
     this.stripe = new Stripe(this.config.getOrThrow('STRIPE_SECRET_KEY'), {
       apiVersion: '2026-03-25.dahlia',
@@ -69,9 +74,55 @@ export class SubscriptionsService {
 
   // ── Checkout ───────────────────────────────────────────────────────────────
 
+  async validatePromoCode(userId: string, promoCode?: string) {
+    const basePrice = Number(this.config.get('PRO_MONTHLY_EUR') ?? 9.99);
+    const code = (promoCode ?? '').trim().toUpperCase();
+    if (!code) {
+      return {
+        valid: false,
+        reason: 'EMPTY',
+        code: null,
+        discountPct: 0,
+        basePrice,
+        finalPrice: basePrice,
+      };
+    }
+
+    const validation = await this.promo.validate(code, userId);
+    if (!validation.valid || !validation.promo) {
+      return {
+        valid: false,
+        reason: validation.reason ?? 'INVALID',
+        code,
+        discountPct: 0,
+        basePrice,
+        finalPrice: basePrice,
+      };
+    }
+
+    const discountPct = Number(validation.promo.discountPct ?? 0);
+    const finalPrice = Math.max(
+      0,
+      Math.round((basePrice * (1 - discountPct / 100)) * 100) / 100,
+    );
+
+    return {
+      valid: discountPct > 0,
+      reason: discountPct > 0 ? undefined : 'NO_DISCOUNT',
+      code,
+      discountPct,
+      basePrice,
+      finalPrice,
+      validUntil: validation.promo.validUntil,
+      maxUses: validation.promo.maxUses,
+      usedCount: validation.promo.usedCount,
+    };
+  }
+
   async createCheckoutSession(
     userId: string,
     userEmail: string,
+    promoCode?: string,
   ): Promise<{ sessionId: string; checkoutUrl: string }> {
     const sub = await this.getOrCreateSubscription(userId);
 
@@ -88,10 +139,41 @@ export class SubscriptionsService {
       });
     }
 
+    let discounts: Stripe.Checkout.SessionCreateParams.Discount[] | undefined;
+    let appliedPromo: { code: string; discountPct: number } | null = null;
+
+    if (promoCode && promoCode.trim()) {
+      const code = promoCode.trim().toUpperCase();
+      const validation = await this.promo.validate(code, userId);
+      if (!validation.valid || !validation.promo) {
+        throw new ForbiddenException({
+          message: 'Invalid promo code',
+          code: validation.reason ?? 'INVALID',
+        });
+      }
+      if ((validation.promo.discountPct ?? 0) <= 0) {
+        throw new ForbiddenException({
+          message: 'Promo code has no discount',
+          code: 'NO_DISCOUNT',
+        });
+      }
+
+      // For demo: create a Stripe coupon on the fly.
+      // (In production we would reuse and persist coupon IDs.)
+      const coupon = await this.stripe.coupons.create({
+        percent_off: validation.promo.discountPct,
+        duration: 'once',
+        name: `VisionArt ${code}`,
+      });
+      discounts = [{ coupon: coupon.id }];
+      appliedPromo = { code, discountPct: validation.promo.discountPct };
+    }
+
     const session = await this.stripe.checkout.sessions.create({
       customer: customerId,
       mode: 'subscription',
       payment_method_types: ['card'],
+      discounts,
       line_items: [
         {
           price: this.config.getOrThrow('STRIPE_PRO_PRICE_ID'),
@@ -104,7 +186,7 @@ export class SubscriptionsService {
       cancel_url:
         this.config.get('FRONTEND_CANCEL_URL') ??
         'visionart://subscription/cancel',
-      metadata: { userId },
+      metadata: { userId, promoCode: appliedPromo?.code ?? '' },
     });
 
     return { sessionId: session.id, checkoutUrl: session.url! };
@@ -184,6 +266,39 @@ export class SubscriptionsService {
       },
     );
     this.logger.log(`User ${userId} upgraded to Pro`);
+
+    // Attribution: if a promo code was used, mark it used and emit a CONVERTED event
+    const promoCode = (session.metadata?.promoCode || '').trim();
+    if (promoCode) {
+      try {
+        await this.promo.markUsed(promoCode);
+      } catch (e) {
+        this.logger.warn(`Promo markUsed failed: ${(e as Error).message}`);
+      }
+      try {
+        const [row] = await this.dataSource.query(
+          `SELECT id FROM retention_actions WHERE promo_code = ? ORDER BY created_at DESC LIMIT 1`,
+          [promoCode],
+        );
+        if (row?.id) {
+          const proMonthlyEur = Number(this.config.get('PRO_MONTHLY_EUR') ?? 9.99);
+          // best-effort: infer discount % from promo_codes table
+          const [promo] = await this.dataSource.query(
+            `SELECT discount_pct FROM promo_codes WHERE code = ? LIMIT 1`,
+            [promoCode],
+          );
+          const discountPct = Number(promo?.discount_pct ?? 0);
+          const savedEur = Math.round((proMonthlyEur * discountPct / 100) * 100) / 100;
+          await this.dataSource.query(
+            `INSERT INTO retention_events (action_id, type, metadata, created_at)
+             VALUES (?, 'CONVERTED', JSON_OBJECT('promoCode', ?, 'discountPct', ?, 'savedEur', ?), NOW())`,
+            [row.id, promoCode, discountPct, savedEur],
+          );
+        }
+      } catch (e) {
+        this.logger.warn(`Retention conversion event insert failed: ${(e as Error).message}`);
+      }
+    }
   }
 
   async handleInvoicePaid(invoice: Stripe.Invoice): Promise<void> {
@@ -208,6 +323,20 @@ export class SubscriptionsService {
         generationsUsedThisMonth: 0,
       },
     );
+
+    // Award loyalty points for the renewal — idempotent on (user, periodEnd)
+    const sub = await this.subscriptionRepo.findOne({
+      where: { stripeSubscriptionId: stripeSubId },
+    });
+    if (sub) {
+      try {
+        await this.loyalty.awardRenewal(sub.userId, periodEnd.toISOString());
+      } catch (e) {
+        this.logger.warn(
+          `Loyalty award (renewal) failed for ${sub.userId}: ${(e as Error).message}`,
+        );
+      }
+    }
     this.logger.log(`Invoice paid – reset quota for subscription ${stripeSubId}`);
   }
 

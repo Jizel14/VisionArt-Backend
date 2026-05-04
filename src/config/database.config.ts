@@ -17,6 +17,12 @@ import { MarketplaceWalletTransaction } from 'src/marketplace/entities/marketpla
 import { MarketplaceListing } from 'src/marketplace/entities/marketplace-listing.entity';
 import { MarketplaceNegotiation } from 'src/marketplace/entities/marketplace-negotiation.entity';
 import { MarketplaceNegotiationMessage } from 'src/marketplace/entities/marketplace-negotiation-message.entity';
+import { LoyaltyPoints } from 'src/loyalty/entities/loyalty-points.entity';
+import { LoyaltyEvent } from 'src/loyalty/entities/loyalty-event.entity';
+import { PromoCode } from 'src/promo/entities/promo-code.entity';
+import { RetentionRun } from 'src/retention/entities/retention-run.entity';
+import { RetentionAction } from 'src/retention/entities/retention-action.entity';
+import { RetentionEvent } from 'src/retention/entities/retention-event.entity';
 
 export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
   type: 'mysql',
@@ -44,6 +50,12 @@ export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
     MarketplaceListing,
     MarketplaceNegotiation,
     MarketplaceNegotiationMessage,
+    LoyaltyPoints,
+    LoyaltyEvent,
+    PromoCode,
+    RetentionRun,
+    RetentionAction,
+    RetentionEvent,
   ],
   synchronize: process.env.DB_SYNCHRONIZE === 'true',
   logging: process.env.DB_LOGGING === 'true',

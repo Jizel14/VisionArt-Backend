@@ -7,11 +7,13 @@ import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { UsersModule } from '../users/users.module';
 import { UserPreferencesModule } from '../user-preferences/user-preferences.module';
+import { LoyaltyModule } from '../loyalty/loyalty.module';
 
 @Module({
   imports: [
     UsersModule,
     UserPreferencesModule,
+    LoyaltyModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

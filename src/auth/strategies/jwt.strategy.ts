@@ -26,6 +26,11 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       throw new UnauthorizedException('User not found');
     }
 
-    return { userId: user.id, email: user.email };
+    this.usersService.assertNotBanned(user);
+
+    // Best-effort activity tracking; throttled internally to ~once per 5 min.
+    void this.usersService.touchActive(user.id).catch(() => {});
+
+    return { userId: user.id, email: user.email, sub: user.id };
   }
 }
