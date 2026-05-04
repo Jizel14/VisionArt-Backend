@@ -15,6 +15,10 @@ import { MarketplaceWalletTransaction } from 'src/marketplace/entities/marketpla
 import { MarketplaceListing } from 'src/marketplace/entities/marketplace-listing.entity';
 import { MarketplaceNegotiation } from 'src/marketplace/entities/marketplace-negotiation.entity';
 import { MarketplaceNegotiationMessage } from 'src/marketplace/entities/marketplace-negotiation-message.entity';
+import { Conversation } from 'src/chat/entities/conversation.entity';
+import { ConversationParticipant } from 'src/chat/entities/conversation-participant.entity';
+import { Message } from 'src/chat/entities/message.entity';
+import { MessageReaction } from 'src/chat/entities/message-reaction.entity';
 
 export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
   type: 'mysql',
@@ -40,6 +44,10 @@ export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
     MarketplaceListing,
     MarketplaceNegotiation,
     MarketplaceNegotiationMessage,
+    Conversation,
+    ConversationParticipant,
+    Message,
+    MessageReaction,
   ],
   synchronize: process.env.DB_SYNCHRONIZE === 'true',
   logging: process.env.DB_LOGGING === 'true',
