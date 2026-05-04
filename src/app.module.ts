@@ -11,6 +11,7 @@ import { SeederModule } from './seeders/seeder.module';
 import { MarketplaceModule } from './marketplace/marketplace.module';
 import { getDatabaseConfig } from './config/database.config';
 import { StorageModule } from './storage/storage.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { StorageModule } from './storage/storage.module';
     SocialModule,
     MarketplaceModule,
     StorageModule,
+    ChatModule,
     SeederModule,
   ],
   controllers: [AppController],
