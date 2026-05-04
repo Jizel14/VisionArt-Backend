@@ -1,24 +1,22 @@
 import { Module } from '@nestjs/common';
-import { FollowModule } from './follow/follow.module';
-import { ArtworksModule } from './artworks/artworks.module';
-import { ModerationModule } from './moderation/moderation.module';
-import { CollectionsModule } from './collections/collections.module';
-import { NotificationsModule } from './notifications/notifications.module';
+import { ArtworksController } from './artworks.controller';
+import { NotificationsController } from './notifications.controller';
+import { FollowController } from './follow.controller';
+
+import { ReportsModule } from '../reports/reports.module';
+import { ImageGenerationService } from './image-generation.service';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { Artwork } from './artwork.entity';
+import { Like } from './like.entity';
+import { Comment } from './comment.entity';
+import { ArtworksService } from './artworks.service';
 
 @Module({
   imports: [
-    FollowModule,
-    ArtworksModule,
-    ModerationModule,
-    CollectionsModule,
-    NotificationsModule,
+    ReportsModule,
+    TypeOrmModule.forFeature([Artwork, Like, Comment])
   ],
-  exports: [
-    FollowModule,
-    ArtworksModule,
-    ModerationModule,
-    CollectionsModule,
-    NotificationsModule,
-  ],
+  controllers: [ArtworksController, NotificationsController, FollowController],
+  providers: [ImageGenerationService, ArtworksService],
 })
-export class SocialModule {}
+export class SocialModule { }

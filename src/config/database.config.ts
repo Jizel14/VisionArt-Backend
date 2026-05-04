@@ -1,15 +1,9 @@
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { User } from 'src/users/user.entity';
-import { UserPreferences } from 'src/user-preferences/entities/user-preferences.entity';
-import { UserFollower } from 'src/social/follow/entities/user-follower.entity';
-import { Artwork } from 'src/social/artworks/entities/artwork.entity';
-import { ArtworkLike } from 'src/social/artworks/entities/artwork-like.entity';
-import { ArtworkComment } from 'src/social/artworks/entities/artwork-comment.entity';
-import { ArtworkCommentMention } from 'src/social/artworks/entities/artwork-comment-mention.entity';
-import { ArtworkReport } from 'src/social/moderation/entities/artwork-report.entity';
-import { ArtworkSave } from 'src/social/collections/entities/artwork-save.entity';
-import { UserNotification } from 'src/social/notifications/entities/user-notification.entity';
-import { Subscription } from 'src/subscriptions/entities/subscription.entity';
+import { Report } from 'src/reports/report.entity';
+import { Artwork } from 'src/social/artwork.entity';
+import { Like } from 'src/social/like.entity';
+import { Comment } from 'src/social/comment.entity';
 
 export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
   type: 'mysql',
@@ -18,20 +12,9 @@ export const getDatabaseConfig = (): TypeOrmModuleOptions => ({
   username: process.env.DB_USERNAME || 'root',
   password: process.env.DB_PASSWORD,
   database: process.env.DB_DATABASE || 'visionart',
-  entities: [
-    User,
-    UserPreferences,
-    UserFollower,
-    Artwork,
-    ArtworkLike,
-    ArtworkComment,
-    ArtworkCommentMention,
-    ArtworkReport,
-    ArtworkSave,
-    UserNotification,
-    Subscription,
-  ],
-  synchronize: process.env.DB_SYNCHRONIZE === 'true',
+  entities: [User, Report, Artwork, Like, Comment],
+  // Auto-sync: create/update tables from entities in dev; disable in production.
+  synchronize: process.env.NODE_ENV !== 'production',
   logging: process.env.DB_LOGGING === 'true',
   charset: 'utf8mb4',
 });
