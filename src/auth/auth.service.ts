@@ -8,6 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { UserPreferencesService } from '../user-preferences/user-preferences.service';
+import { LoyaltyService } from '../loyalty/loyalty.service';
 
 @Injectable()
 export class AuthService {
@@ -15,12 +16,26 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly userPreferencesService: UserPreferencesService,
     private readonly jwtService: JwtService,
+    private readonly loyaltyService: LoyaltyService,
   ) {}
 
   async login(email: string, password: string) {
     const user = await this.usersService.findByEmail(email);
     if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
       throw new UnauthorizedException('Invalid email or password');
+    }
+    this.usersService.assertNotBanned(user);
+    // Record login activity (drives retention segments) and award daily-login points.
+    // Both are best-effort and must never break login.
+    try {
+      await this.usersService.markLogin(user.id);
+    } catch {
+      /* swallow */
+    }
+    try {
+      await this.loyaltyService.awardDailyLogin(user.id);
+    } catch {
+      /* swallow */
     }
     const payload = { sub: user.id, email: user.email };
     const access_token = this.jwtService.sign(payload);

@@ -12,6 +12,9 @@ import { MarketplaceListing } from '../marketplace/entities/marketplace-listing.
 import { Story } from '../social/stories/entities/story.entity';
 import { PlaygroundSeeder } from './playground.seeder';
 import { StoriesSeeder } from './stories.seeder';
+import { RetentionDemoSeeder } from './retention-demo.seeder';
+import { Subscription } from '../subscriptions/entities/subscription.entity';
+import { LoyaltyPoints } from '../loyalty/entities/loyalty-points.entity';
 
 @Module({
   imports: [
@@ -26,9 +29,11 @@ import { StoriesSeeder } from './stories.seeder';
       MarketplaceWallet,
       MarketplaceWalletTransaction,
       MarketplaceListing,
+      Subscription,
+      LoyaltyPoints,
     ]),
   ],
-  providers: [PlaygroundSeeder, StoriesSeeder],
-  exports: [PlaygroundSeeder, StoriesSeeder],
+  providers: [PlaygroundSeeder, StoriesSeeder, RetentionDemoSeeder],
+  exports: [PlaygroundSeeder, StoriesSeeder, RetentionDemoSeeder],
 })
 export class SeederModule {}

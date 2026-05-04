@@ -12,6 +12,7 @@ import { ArtworkSave } from '../collections/entities/artwork-save.entity';
 import { User } from '../../users/user.entity';
 import { CreateArtworkDto, UpdateArtworkDto } from './dto/artwork.dto';
 import { FollowService } from '../follow/follow.service';
+import { ModerationStatus } from '../../ai-moderation/ai-moderation.constants';
 
 @Injectable()
 export class ArtworkService {
@@ -30,7 +31,12 @@ export class ArtworkService {
   /**
    * Create a new artwork
    */
-  async create(userId: string, dto: CreateArtworkDto) {
+  async create(
+    userId: string,
+    dto: CreateArtworkDto,
+    moderationStatus?: ModerationStatus,
+    moderationReason?: string | null,
+  ) {
     if (!dto.imageUrl) {
       throw new BadRequestException('Image URL is required');
     }
@@ -60,6 +66,8 @@ export class ArtworkService {
     const artwork = this.artworkRepository.create({
       userId,
       ...dto,
+      moderationStatus: moderationStatus ?? ModerationStatus.APPROVED,
+      moderationReason: moderationReason ?? null,
     });
 
     const saved = await this.artworkRepository.save(artwork);

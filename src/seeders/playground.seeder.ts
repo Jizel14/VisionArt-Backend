@@ -65,6 +65,14 @@ export class PlaygroundSeeder {
     const artworks = await this.createArtworks(users);
     console.log(`✅ Created ${artworks.length} artworks`);
 
+    const totalArtworks = await this.artworkRepository.count();
+    if (totalArtworks === 0) {
+      throw new Error(
+        'Playground seeder: 0 rows in `artworks` after insert. Check DB errors (FK, NOT NULL columns, URL length).',
+      );
+    }
+    console.log(`✅ Verified ${totalArtworks} artwork row(s) in database`);
+
     // Create likes on artworks
     await this.createLikes(users, artworks);
     console.log(`✅ Created likes on artworks`);
@@ -77,13 +85,49 @@ export class PlaygroundSeeder {
     await this.createMarketplaceData(users, artworks);
     console.log(`✅ Created marketplace wallets and listings`);
 
+    await this.ensureBackofficeAdmin();
+
     console.log('🎉 Playground seeder completed successfully!');
+  }
+
+  /** Ignore missing tables (older DBs). */
+  private async safeQuery(sql: string): Promise<void> {
+    try {
+      await this.userRepository.query(sql);
+    } catch (e: unknown) {
+      const err = e as { code?: string; message?: string };
+      const msg = String(err?.message ?? e);
+      if (
+        err?.code === 'ER_NO_SUCH_TABLE' ||
+        msg.includes('doesn\'t exist') ||
+        msg.includes("doesn't exist")
+      ) {
+        return;
+      }
+      throw e;
+    }
   }
 
   private async clearData(): Promise<void> {
     console.log('🗑️ Clearing existing data...');
 
-    // Clear in dependent order (reverse of creation)
+    // Retention / loyalty / subs / reports (often block user or artwork deletes)
+    await this.safeQuery('DELETE FROM retention_events');
+    await this.safeQuery('DELETE FROM retention_actions');
+    await this.safeQuery('DELETE FROM retention_runs');
+    await this.safeQuery('DELETE FROM loyalty_events');
+    await this.safeQuery('DELETE FROM loyalty_points');
+    await this.safeQuery('DELETE FROM promo_codes');
+    await this.safeQuery('DELETE FROM subscriptions');
+    await this.safeQuery('DELETE FROM reports');
+    await this.safeQuery('DELETE FROM artwork_reports');
+    await this.safeQuery('DELETE FROM user_notifications');
+    await this.safeQuery('DELETE FROM artwork_comment_mentions');
+    await this.safeQuery('DELETE FROM artwork_saves');
+
+    // Marketplace (negotiations reference listings)
+    await this.safeQuery('DELETE FROM marketplace_negotiation_messages');
+    await this.safeQuery('DELETE FROM marketplace_negotiations');
     await this.walletTxRepository.query(
       'DELETE FROM marketplace_wallet_transactions',
     );
@@ -97,8 +141,78 @@ export class PlaygroundSeeder {
     await this.preferencesRepository.query('DELETE FROM user_preferences');
     await this.userRepository.query('DELETE FROM users');
 
-    // Reset auto-increment
-    await this.userRepository.query('ALTER TABLE users AUTO_INCREMENT = 1');
+    try {
+      await this.userRepository.query('ALTER TABLE users AUTO_INCREMENT = 1');
+    } catch {
+      /* UUID PK: no auto_increment */
+    }
+  }
+
+  /**
+   * Backoffice login uses `users` with is_admin = 1 (see backoffice /api/auth/login).
+   * Env: BACKOFFICE_ADMIN_EMAIL, BACKOFFICE_ADMIN_PASSWORD, BACKOFFICE_ADMIN_NAME
+   */
+  private async ensureBackofficeAdmin(): Promise<void> {
+    const email = (
+      process.env.BACKOFFICE_ADMIN_EMAIL || 'admin@visionart.app'
+    ).toLowerCase();
+    const password =
+      process.env.BACKOFFICE_ADMIN_PASSWORD || 'Admin123!';
+    const name =
+      process.env.BACKOFFICE_ADMIN_NAME || 'Backoffice Admin';
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const existing = await this.userRepository.findOne({ where: { email } });
+    if (existing) {
+      await this.userRepository.update(existing.id, {
+        isAdmin: true,
+        passwordHash,
+        name,
+      });
+      console.log(`✅ Backoffice admin ready: ${email} (password updated)`);
+      return;
+    }
+
+    const admin = this.userRepository.create({
+      email,
+      passwordHash,
+      name,
+      bio: null,
+      avatarUrl: null,
+      phoneNumber: null,
+      website: null,
+      isVerified: true,
+      isPrivateAccount: false,
+      isAdmin: true,
+      followersCount: 0,
+      followingCount: 0,
+      publicGenerationsCount: 0,
+    });
+    await this.userRepository.save(admin);
+
+    const preferences = this.preferencesRepository.create({
+      userId: admin.id,
+      theme: 'dark',
+      preferredLanguage: 'fr',
+      notificationsEnabled: true,
+      emailNotificationsEnabled: false,
+      enableNSFWFilter: true,
+      generationQuality: 'balanced',
+      artComplexity: 'moderate',
+      enableLocationContext: false,
+      enableWeatherContext: false,
+      enableCalendarContext: false,
+      enableMusicContext: false,
+      enableTimeContext: true,
+      defaultResolution: '1024x1024',
+      defaultAspectRatio: 'square',
+      dataRetentionPeriod: 365,
+      allowDataForTraining: false,
+      shareGenerationsPublicly: false,
+    });
+    await this.preferencesRepository.save(preferences);
+
+    console.log(`✅ Backoffice admin created: ${email}`);
   }
 
   private async createUsers(): Promise<User[]> {
@@ -396,8 +510,8 @@ export class PlaygroundSeeder {
           style: 'digital art',
           mood: 'cyberpunk',
         },
-        imageUrl: 'https://picsum.photos/400/400?random=1',
-        thumbnailUrl: 'https://picsum.photos/200/200?random=1',
+        imageUrl: 'https://picsum.photos/id/10/400/400',
+        thumbnailUrl: 'https://picsum.photos/id/10/200/200',
       },
       {
         title: 'Serene Mountain Lake',
@@ -407,8 +521,8 @@ export class PlaygroundSeeder {
           style: 'landscape photography',
           mood: 'peaceful',
         },
-        imageUrl: 'https://picsum.photos/400/400?random=2',
-        thumbnailUrl: 'https://picsum.photos/200/200?random=2',
+        imageUrl: 'https://picsum.photos/id/20/400/400',
+        thumbnailUrl: 'https://picsum.photos/id/20/200/200',
       },
       {
         title: 'Abstract Consciousness',
@@ -418,8 +532,8 @@ export class PlaygroundSeeder {
           style: 'abstract art',
           mood: 'philosophical',
         },
-        imageUrl: 'https://picsum.photos/400/400?random=3',
-        thumbnailUrl: 'https://picsum.photos/200/200?random=3',
+        imageUrl: 'https://picsum.photos/id/30/400/400',
+        thumbnailUrl: 'https://picsum.photos/id/30/200/200',
       },
       {
         title: 'Retro Future',
@@ -429,8 +543,8 @@ export class PlaygroundSeeder {
           style: 'retro-future',
           mood: 'nostalgic',
         },
-        imageUrl: 'https://picsum.photos/400/400?random=4',
-        thumbnailUrl: 'https://picsum.photos/200/200?random=4',
+        imageUrl: 'https://picsum.photos/id/40/400/400',
+        thumbnailUrl: 'https://picsum.photos/id/40/200/200',
       },
       {
         title: 'Deep Ocean',
@@ -440,8 +554,8 @@ export class PlaygroundSeeder {
           style: 'fantasy illustration',
           mood: 'mysterious',
         },
-        imageUrl: 'https://picsum.photos/400/400?random=5',
-        thumbnailUrl: 'https://picsum.photos/200/200?random=5',
+        imageUrl: 'https://picsum.photos/id/50/400/400',
+        thumbnailUrl: 'https://picsum.photos/id/50/200/200',
       },
       {
         title: 'Golden Wheat Fields',
@@ -451,8 +565,8 @@ export class PlaygroundSeeder {
           style: 'impressionist',
           mood: 'serene',
         },
-        imageUrl: 'https://picsum.photos/400/400?random=6',
-        thumbnailUrl: 'https://picsum.photos/200/200?random=6',
+        imageUrl: 'https://picsum.photos/id/60/400/400',
+        thumbnailUrl: 'https://picsum.photos/id/60/200/200',
       },
       {
         title: 'Urban Jungle',
@@ -462,8 +576,8 @@ export class PlaygroundSeeder {
           style: 'digital art',
           mood: 'dystopian',
         },
-        imageUrl: 'https://picsum.photos/400/400?random=7',
-        thumbnailUrl: 'https://picsum.photos/200/200?random=7',
+        imageUrl: 'https://picsum.photos/id/70/400/400',
+        thumbnailUrl: 'https://picsum.photos/id/70/200/200',
       },
       {
         title: 'Crystalline Dreams',
@@ -473,8 +587,8 @@ export class PlaygroundSeeder {
           style: 'fractal art',
           mood: 'mesmerizing',
         },
-        imageUrl: 'https://picsum.photos/400/400?random=8',
-        thumbnailUrl: 'https://picsum.photos/200/200?random=8',
+        imageUrl: 'https://picsum.photos/id/80/400/400',
+        thumbnailUrl: 'https://picsum.photos/id/80/200/200',
       },
     ];
 
@@ -486,13 +600,14 @@ export class PlaygroundSeeder {
         const sample = samples[(userIdx * 3 + j) % samples.length];
         const isPublic = true;
 
+        const picId = ((userIdx * 3 + j) % 79) + 1;
         const artwork = this.artworkRepository.create({
           userId: users[userIdx].id,
           title: `${sample.title} #${j + 1}`,
           description: sample.description,
           prompt: sample.prompt,
-          imageUrl: `${sample.imageUrl}&t=${Date.now()}`,
-          thumbnailUrl: `${sample.thumbnailUrl}&t=${Date.now()}`,
+          imageUrl: `https://picsum.photos/id/${picId}/400/400`,
+          thumbnailUrl: `https://picsum.photos/id/${picId}/200/200`,
           isPublic,
           isNSFW: false,
           metadata: {

@@ -7,9 +7,12 @@ import {
   Body,
   Query,
   UseGuards,
+  UseInterceptors,
+  Req,
   HttpCode,
   Patch,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -20,6 +23,8 @@ import { LikeService } from './like.service';
 import { CommentService } from './comment.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { AiModerationInterceptor } from '../../ai-moderation/ai-moderation.interceptor';
+import { ModerationStatus } from '../../ai-moderation/ai-moderation.constants';
 import {
   LikeResponseDto,
   LikesListResponseDto,
@@ -86,6 +91,7 @@ export class EngagementController {
 
   @Post(':artworkId/comments')
   @UseGuards(JwtAuthGuard)
+  @UseInterceptors(AiModerationInterceptor)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a comment on an artwork' })
   @ApiResponse({ status: 201, type: ArtworkCommentDto })
@@ -93,8 +99,12 @@ export class EngagementController {
     @CurrentUser() userId: string,
     @Param('artworkId') artworkId: string,
     @Body() dto: CreateCommentDto,
+    @Req() req: Request,
   ) {
-    return this.commentService.create(userId, artworkId, dto);
+    const r = req as unknown as Record<string, unknown>;
+    const moderationStatus = r['moderationStatus'] as ModerationStatus | undefined;
+    const moderationReason = r['moderationReason'] as string | null | undefined;
+    return this.commentService.create(userId, artworkId, dto, moderationStatus, moderationReason ?? null);
   }
 
   @Get(':artworkId/comments')

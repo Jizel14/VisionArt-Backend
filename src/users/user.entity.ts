@@ -48,9 +48,32 @@ export class User {
   @Column({ type: 'boolean', default: false, name: 'is_private_account' })
   isPrivateAccount: boolean;
 
+  @Column({ type: 'boolean', default: false, name: 'is_admin' })
+  isAdmin: boolean;
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  // ── Activity tracking (used by RetentionService) ──────────────────────────
+  @Column({ type: 'datetime', nullable: true, name: 'last_login_at' })
+  lastLoginAt: Date | null;
+
+  @Column({ type: 'datetime', nullable: true, name: 'last_active_at' })
+  lastActiveAt: Date | null;
+
+  @Column({ type: 'datetime', nullable: true, name: 'previous_login_at' })
+  previousLoginAt: Date | null;
+
+  @Column({ type: 'varchar', length: 8, default: 'fr' })
+  locale: string;
+
+  @Column({ type: 'boolean', default: true, name: 'marketing_opt_in' })
+  marketingOptIn: boolean;
+
+  /** When set and in the future, login and API access are rejected. */
+  @Column({ type: 'datetime', nullable: true, name: 'banned_until' })
+  bannedUntil: Date | null;
 }

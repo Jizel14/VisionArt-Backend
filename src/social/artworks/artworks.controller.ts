@@ -8,8 +8,11 @@ import {
   Body,
   Query,
   UseGuards,
+  UseInterceptors,
+  Req,
   HttpCode,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -19,6 +22,8 @@ import {
 import { ArtworkService } from './artwork.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
+import { AiModerationInterceptor } from '../../ai-moderation/ai-moderation.interceptor';
+import { ModerationStatus } from '../../ai-moderation/ai-moderation.constants';
 import {
   CreateArtworkDto,
   UpdateArtworkDto,
@@ -36,14 +41,19 @@ export class ArtworksController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
+  @UseInterceptors(AiModerationInterceptor)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new artwork' })
   @ApiResponse({ status: 201, type: ArtworkResponseDto })
   async createArtwork(
     @CurrentUser() userId: string,
     @Body() dto: CreateArtworkDto,
+    @Req() req: Request,
   ) {
-    return this.artworkService.create(userId, dto);
+    const r = req as unknown as Record<string, unknown>;
+    const moderationStatus = r['moderationStatus'] as ModerationStatus | undefined;
+    const moderationReason = r['moderationReason'] as string | null | undefined;
+    return this.artworkService.create(userId, dto, moderationStatus, moderationReason ?? null);
   }
 
   @Get('feed')

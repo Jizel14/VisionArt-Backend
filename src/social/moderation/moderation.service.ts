@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -9,9 +10,13 @@ import { ArtworkReport, ReportStatus } from './entities/artwork-report.entity';
 import { Artwork } from '../artworks/entities/artwork.entity';
 import { User } from '../../users/user.entity';
 import { CreateReportDto } from './dto/moderation.dto';
+import { ReportsService } from '../../reports/reports.service';
+import { ReportType } from '../../reports/report.entity';
 
 @Injectable()
 export class ModerationService {
+  private readonly logger = new Logger(ModerationService.name);
+
   constructor(
     @InjectRepository(ArtworkReport)
     private reportRepository: Repository<ArtworkReport>,
@@ -19,6 +24,7 @@ export class ModerationService {
     private artworkRepository: Repository<Artwork>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    private readonly reportsService: ReportsService,
   ) {}
 
   /**
@@ -53,6 +59,29 @@ export class ModerationService {
     });
 
     const saved = await this.reportRepository.save(report);
+
+    // Mirror into `reports` so the backoffice "Signalements" list shows in-app artwork reports.
+    try {
+      const title = artwork.title?.trim() || 'Sans titre';
+      let description = [`Motif: ${dto.reason}`, dto.details?.trim() ?? '']
+        .filter((s) => s.length > 0)
+        .join('\n');
+      if (description.length < 5) {
+        description = `Motif: ${dto.reason} — œuvre ${artworkId}`;
+      }
+      await this.reportsService.create({
+        userId: reporterId,
+        type: ReportType.ARTWORK,
+        subject: `Signalement œuvre: ${title}`,
+        description,
+        targetId: artworkId,
+        imageUrl: null,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Mirror to reports table failed for artwork ${artworkId}: ${String(err)}`,
+      );
+    }
 
     return {
       success: true,
