@@ -13,6 +13,7 @@ import { LikeService } from './like.service';
 import { CommentService } from './comment.service';
 import { FollowModule } from '../follow/follow.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { ImageGenerationModule } from '../image-generation.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     ]),
     FollowModule,
     NotificationsModule,
+    ImageGenerationModule,
   ],
   providers: [ArtworkService, LikeService, CommentService],
   controllers: [ArtworksController, EngagementController],

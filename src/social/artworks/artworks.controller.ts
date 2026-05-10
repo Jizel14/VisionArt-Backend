@@ -11,6 +11,7 @@ import {
   UseInterceptors,
   Req,
   HttpCode,
+  HttpException,
 } from '@nestjs/common';
 import type { Request } from 'express';
 import {
@@ -20,7 +21,11 @@ import {
   ApiResponse,
 } from '@nestjs/swagger';
 import { ArtworkService } from './artwork.service';
+import { ImageGenerationService } from '../image-generation.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Artwork } from './entities/artwork.entity';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { AiModerationInterceptor } from '../../ai-moderation/ai-moderation.interceptor';
 import { ModerationStatus } from '../../ai-moderation/ai-moderation.constants';
@@ -37,7 +42,12 @@ import {
 @ApiTags('Social - Artworks')
 @Controller('social/artworks')
 export class ArtworksController {
-  constructor(private artworkService: ArtworkService) {}
+  constructor(
+    private artworkService: ArtworkService,
+    private imageGenerationService: ImageGenerationService,
+    @InjectRepository(Artwork)
+    private artworkRepository: Repository<Artwork>,
+  ) {}
 
   @Post()
   @UseGuards(JwtAuthGuard)
@@ -51,9 +61,16 @@ export class ArtworksController {
     @Req() req: Request,
   ) {
     const r = req as unknown as Record<string, unknown>;
-    const moderationStatus = r['moderationStatus'] as ModerationStatus | undefined;
+    const moderationStatus = r['moderationStatus'] as
+      | ModerationStatus
+      | undefined;
     const moderationReason = r['moderationReason'] as string | null | undefined;
-    return this.artworkService.create(userId, dto, moderationStatus, moderationReason ?? null);
+    return this.artworkService.create(
+      userId,
+      dto,
+      moderationStatus,
+      moderationReason ?? null,
+    );
   }
 
   @Get('feed')
@@ -198,5 +215,61 @@ export class ArtworksController {
     const limit = Math.min(query.limit || 20, 100);
 
     return this.artworkService.getRemixes(artworkId, page, limit);
+  }
+
+  @Post(':id/generate-video')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Generate a video from an existing artwork' })
+  @ApiResponse({ status: 200 })
+  async generateVideo(
+    @Param('id') artworkId: string,
+    @Body() body: { prompt?: string },
+  ) {
+    // Fetch raw artwork to get prompt data
+    const artwork = await this.artworkRepository.findOne({
+      where: { id: artworkId },
+    });
+    if (!artwork) {
+      throw new HttpException('Artwork not found', 404);
+    }
+
+    // Extract prompt text - prompt is stored as object with 'text' or 'prompt' property
+    let promptText = body?.prompt;
+    if (!promptText && artwork.prompt) {
+      const p = artwork.prompt as Record<string, unknown>;
+      promptText =
+        (p.text as string) || (p.prompt as string) || JSON.stringify(p);
+    }
+    promptText = promptText || 'A beautiful cinematic scene with smooth motion';
+
+    // Extract base64 image data from imageUrl (could be data URI or regular URL)
+    let imageBase64: string;
+    if (artwork.imageUrl.startsWith('data:image')) {
+      // Extract base64 from data URI
+      imageBase64 = artwork.imageUrl.split(',')[1];
+    } else {
+      // Fetch image and convert to base64
+      const response = await fetch(artwork.imageUrl);
+      if (!response.ok) {
+        throw new HttpException('Failed to fetch artwork image', 500);
+      }
+      const buffer = Buffer.from(await response.arrayBuffer());
+      imageBase64 = buffer.toString('base64');
+    }
+
+    const result = await this.imageGenerationService.generateVideo(
+      imageBase64,
+      promptText,
+    );
+
+    if (result.videoUrl) {
+      await this.artworkService.updateVideoUrl(artworkId, result.videoUrl);
+    }
+
+    return {
+      success: true,
+      videoUrl: result.videoUrl,
+    };
   }
 }

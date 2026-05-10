@@ -251,6 +251,24 @@ export class ArtworkService {
   }
 
   /**
+   * Update artwork video URL after video generation
+   */
+  async updateVideoUrl(id: string, videoUrl: string) {
+    const artwork = await this.artworkRepository.findOne({
+      where: { id },
+    });
+
+    if (!artwork) {
+      throw new NotFoundException('Artwork not found');
+    }
+
+    artwork.videoUrl = videoUrl;
+    await this.artworkRepository.save(artwork);
+
+    return { success: true, videoUrl };
+  }
+
+  /**
    * Get personalized feed (followed users' public artworks)
    */
   async getFeed(

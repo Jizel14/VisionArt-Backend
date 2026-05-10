@@ -77,8 +77,16 @@ export class Artwork {
   })
   moderationStatus: ModerationStatus;
 
-  @Column({ type: 'varchar', length: 500, nullable: true, name: 'moderation_reason' })
+  @Column({
+    type: 'varchar',
+    length: 500,
+    nullable: true,
+    name: 'moderation_reason',
+  })
   moderationReason: string | null;
+
+  @Column({ type: 'varchar', length: 500, nullable: true, name: 'video_url' })
+  videoUrl: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
