@@ -25,6 +25,77 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
+## Marketplace Tutor Demo (Mock + Blockchain Proof)
+
+This repo now supports a no-real-money marketplace demo path:
+
+- marketplace listing/buy/cancel flow in backend + Flutter,
+- mock wallet balances and transactions for user demo accounts,
+- blockchain proof endpoint that reads chain state from RPC.
+- on-chain NFT minting from public artworks via the treasury signer.
+
+### 1) Seed demo data
+
+Run from `VisionArt-Backend`:
+
+```bash
+npm install
+npm run seed:playground
+```
+
+This creates:
+
+- demo users,
+- public artworks,
+- marketplace wallets with seeded balances,
+- active and cancelled listings.
+
+### 2) Run backend
+
+```bash
+npm run start:dev
+```
+
+### 3) Run Flutter app
+
+Make sure `API_BASE_URL` points to backend (for emulator/device, use reachable host), then run Flutter.
+
+### 4) Show tutor the blockchain concept is implemented
+
+Use these proof points during demo:
+
+- In app: open Marketplace Balance and show **Blockchain Proof** card.
+- In API: call `GET /marketplace/blockchain/proof` (authenticated).
+- Show returned fields:
+  - `chain.rpcChainId`, `chain.latestBlockNumber`,
+  - contract addresses,
+  - `deployed` flags from `eth_getCode`,
+  - overall `proofReady` status.
+
+This demonstrates the app is connected to a live blockchain RPC and validates contract deployment state, while payments remain mock/test-safe for presentation.
+
+### 5) Real testnet topup/withdraw flow (optional)
+
+To run topup/withdraw with real on-chain transactions on Amoy, add to backend `.env`:
+
+- `WEB3_TREASURY_PRIVATE_KEY` – private key of treasury wallet used to send withdraw transactions
+- `WEB3_TREASURY_WALLET_ADDRESS` – treasury public address (optional but recommended)
+
+Flow:
+
+- Topup: user sends POL from connected wallet to treasury wallet, then submits tx hash in topup dialog. Backend verifies sender, receiver and amount before crediting balance.
+- Withdraw: user enters destination wallet; backend sends POL from treasury on-chain and stores tx hash in wallet transaction metadata.
+
+### 6) On-chain NFT minting
+
+To mint artworks as NFTs from the app, the backend needs:
+
+- `WEB3_NFT_CONTRACT_ADDRESS`
+- `WEB3_TREASURY_PRIVATE_KEY`
+- `WEB3_TREASURY_WALLET_ADDRESS` if you want an explicit wallet address in logs and config
+
+The mint endpoint stores the resulting token metadata back onto the artwork record so the app can render token ID, contract, and transaction hash after minting.
+
 ## Project setup
 
 ```bash

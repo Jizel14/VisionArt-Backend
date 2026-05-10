@@ -1,22 +1,30 @@
 import { Module } from '@nestjs/common';
-import { ArtworksController } from './artworks.controller';
-import { NotificationsController } from './notifications.controller';
-import { FollowController } from './follow.controller';
-
-import { ReportsModule } from '../reports/reports.module';
-import { ImageGenerationService } from './image-generation.service';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { Artwork } from './artwork.entity';
-import { Like } from './like.entity';
-import { Comment } from './comment.entity';
-import { ArtworksService } from './artworks.service';
+import { FollowModule } from './follow/follow.module';
+import { ArtworksModule } from './artworks/artworks.module';
+import { ModerationModule } from './moderation/moderation.module';
+import { CollectionsModule } from './collections/collections.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { StoriesModule } from './stories/stories.module';
+import { ImageGenerationModule } from './image-generation.module';
 
 @Module({
   imports: [
-    ReportsModule,
-    TypeOrmModule.forFeature([Artwork, Like, Comment])
+    FollowModule,
+    ArtworksModule,
+    ModerationModule,
+    CollectionsModule,
+    NotificationsModule,
+    StoriesModule,
+    ImageGenerationModule,
   ],
-  controllers: [ArtworksController, NotificationsController, FollowController],
-  providers: [ImageGenerationService, ArtworksService],
+  exports: [
+    FollowModule,
+    ArtworksModule,
+    ModerationModule,
+    CollectionsModule,
+    NotificationsModule,
+    StoriesModule,
+    ImageGenerationModule,
+  ],
 })
-export class SocialModule { }
+export class SocialModule {}

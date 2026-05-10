@@ -6,25 +6,6 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-export interface UserPreferencesPermissions {
-  location?: boolean;
-  weather?: boolean;
-  music?: boolean;
-  calendar?: boolean;
-  timeOfDay?: boolean;
-  gallery?: boolean;
-}
-
-export interface UserPreferencesData {
-  subjects?: string[];
-  styles?: string[];
-  colors?: string[];
-  mood?: string;
-  complexity?: number;
-  permissions?: UserPreferencesPermissions;
-  onboardingComplete?: boolean;
-}
-
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
@@ -33,30 +14,66 @@ export class User {
   @Column({ unique: true, length: 255 })
   email: string;
 
-  @Column({ name: 'password_hash', type: 'varchar', length: 255, nullable: true })
-  passwordHash: string | null;
+  @Column({ name: 'password_hash', length: 255 })
+  passwordHash: string;
 
   @Column({ length: 255 })
   name: string;
 
-  @Column({ name: 'provider', type: 'varchar', length: 20, default: 'local' })
-  provider: string;
+  @Column({ type: 'text', nullable: true })
+  bio: string | null;
 
-  @Column({ name: 'google_id', type: 'varchar', length: 255, nullable: true, unique: true })
-  googleId: string | null;
+  @Column({ type: 'varchar', length: 500, nullable: true, name: 'avatar_url' })
+  avatarUrl: string | null;
 
-  @Column({ type: 'json', nullable: true })
-  preferences: UserPreferencesData | null;
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  phoneNumber: string | null;
 
-  @Column({ name: 'reset_password_token', type: 'varchar', length: 255, nullable: true })
-  resetPasswordToken: string | null;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  website: string | null;
 
-  @Column({ name: 'reset_password_expires', type: 'datetime', nullable: true })
-  resetPasswordExpires: Date | null;
+  // Social fields (denormalized for performance)
+  @Column({ type: 'int', default: 0, name: 'followers_count' })
+  followersCount: number;
+
+  @Column({ type: 'int', default: 0, name: 'following_count' })
+  followingCount: number;
+
+  @Column({ type: 'int', default: 0, name: 'public_generations_count' })
+  publicGenerationsCount: number;
+
+  @Column({ type: 'boolean', default: false, name: 'is_verified' })
+  isVerified: boolean;
+
+  @Column({ type: 'boolean', default: false, name: 'is_private_account' })
+  isPrivateAccount: boolean;
+
+  @Column({ type: 'boolean', default: false, name: 'is_admin' })
+  isAdmin: boolean;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  // ── Activity tracking (used by RetentionService) ──────────────────────────
+  @Column({ type: 'datetime', nullable: true, name: 'last_login_at' })
+  lastLoginAt: Date | null;
+
+  @Column({ type: 'datetime', nullable: true, name: 'last_active_at' })
+  lastActiveAt: Date | null;
+
+  @Column({ type: 'datetime', nullable: true, name: 'previous_login_at' })
+  previousLoginAt: Date | null;
+
+  @Column({ type: 'varchar', length: 8, default: 'fr' })
+  locale: string;
+
+  @Column({ type: 'boolean', default: true, name: 'marketing_opt_in' })
+  marketingOptIn: boolean;
+
+  /** When set and in the future, login and API access are rejected. */
+  @Column({ type: 'datetime', nullable: true, name: 'banned_until' })
+  bannedUntil: Date | null;
 }

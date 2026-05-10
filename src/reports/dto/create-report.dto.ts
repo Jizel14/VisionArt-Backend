@@ -1,30 +1,40 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsIn, IsOptional, MaxLength, MinLength } from 'class-validator';
+import {
+  IsIn,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
+import { ReportType } from '../report.entity';
+
+const REPORT_TYPES = Object.values(ReportType);
 
 export class CreateReportDto {
-  @ApiProperty({ enum: ['artwork', 'bug', 'user', 'other'] })
+  @ApiProperty({ enum: REPORT_TYPES, example: ReportType.BUG })
   @IsString()
-  @IsIn(['artwork', 'bug', 'user', 'other'])
+  @IsIn(REPORT_TYPES)
   type: string;
 
-  @ApiPropertyOptional({ description: 'ID of the reported artwork or user (required for artwork/user type)' })
-  @IsOptional()
-  @IsString()
-  targetId?: string;
-
-  @ApiProperty()
+  @ApiProperty({ minLength: 3, maxLength: 255 })
   @IsString()
   @MinLength(3)
   @MaxLength(255)
   subject: string;
 
-  @ApiProperty()
+  @ApiProperty({ minLength: 5 })
   @IsString()
   @MinLength(5)
-  @MaxLength(2000)
+  @MaxLength(8000)
   description: string;
 
-  @ApiPropertyOptional({ description: 'Image URL (screenshot for bug reports)' })
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(36)
+  targetId?: string;
+
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   @MaxLength(500)

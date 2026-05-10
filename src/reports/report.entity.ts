@@ -1,56 +1,49 @@
 import {
-  Entity,
-  Column,
-  PrimaryGeneratedColumn,
-  CreateDateColumn,
-  UpdateDateColumn,
-  ManyToOne,
-  JoinColumn,
+  Entity, Column, PrimaryGeneratedColumn,
+  CreateDateColumn, UpdateDateColumn,
 } from 'typeorm';
-import { User } from '../users/user.entity';
 
-export type ReportType = 'artwork' | 'bug' | 'user' | 'other';
-export type ReportStatus = 'pending' | 'reviewing' | 'resolved' | 'dismissed';
+export enum ReportType {
+  ARTWORK = 'artwork',
+  BUG = 'bug',
+  USER = 'user',
+  OTHER = 'other',
+}
+
+export enum ReportStatus {
+  PENDING = 'pending',
+  REVIEWING = 'reviewing',
+  RESOLVED = 'resolved',
+  DISMISSED = 'dismissed',
+}
 
 @Entity('reports')
 export class Report {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  /** The user who submitted the report */
-  @Column({ name: 'user_id', type: 'varchar', length: 36 })
-  userId: string;
+  @Column({ type: 'varchar', length: 36, name: 'user_id', nullable: true })
+  userId: string | null;
 
-  @ManyToOne(() => User, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'user_id' })
-  user: User;
-
-  /** Type of report: artwork, bug, user, other */
-  @Column({ type: 'varchar', length: 20 })
+  @Column({ type: 'varchar', length: 20, default: ReportType.OTHER })
   type: ReportType;
 
-  /** Target entity id (artwork id, reported user id, etc.) – nullable for bug/other */
-  @Column({ name: 'target_id', type: 'varchar', length: 36, nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true, name: 'target_id' })
   targetId: string | null;
 
-  /** Short subject / title */
-  @Column({ type: 'varchar', length: 255 })
+  @Column({ length: 255 })
   subject: string;
 
-  /** Detailed description */
   @Column({ type: 'text' })
   description: string;
 
-  /** Optional image URL (e.g. screenshot for bug reports) */
-  @Column({ name: 'image_url', type: 'varchar', length: 500, nullable: true })
+  @Column({ type: 'varchar', length: 500, nullable: true, name: 'image_url' })
   imageUrl: string | null;
 
-  /** Status of the report */
-  @Column({ type: 'varchar', length: 20, default: 'pending' })
+  @Column({ type: 'varchar', length: 20, default: ReportStatus.PENDING })
   status: ReportStatus;
 
-  /** Admin note (set from backoffice) */
-  @Column({ name: 'admin_note', type: 'text', nullable: true })
+  @Column({ type: 'text', nullable: true, name: 'admin_note' })
   adminNote: string | null;
 
   @CreateDateColumn({ name: 'created_at' })
